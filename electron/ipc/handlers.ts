@@ -83,6 +83,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('analysis:getProgress', () => analysisQueue.getProgress())
 
   ipcMain.handle('embedding:backfill', async () => embeddingService.backfillMissing())
+  ipcMain.handle('embedding:rebuild', async () => embeddingService.rebuildAll())
   ipcMain.handle('embedding:stats', () => embeddingService.getStats())
 
   ipcMain.handle('imageGen:generate', (_e, request: ImageGenRequest) => textToImageService.generate(request))
@@ -93,8 +94,10 @@ export function registerIpcHandlers(): void {
     textToImageService.saveSession(session)
   })
 
-  ipcMain.handle('imageEdit:listLibraryImages', (_e, libraryId: string, page?: number, pageSize?: number) =>
-    imageEditService.listLibraryImages(libraryId, page, pageSize)
+  ipcMain.handle(
+    'imageEdit:listLibraryImages',
+    (_e, libraryId: string, page?: number, pageSize?: number, mediaTypes?: MediaType[]) =>
+      imageEditService.listLibraryImages(libraryId, page, pageSize, mediaTypes)
   )
   ipcMain.handle('imageEdit:edit', (_e, request: ImageEditRequest) => imageEditService.edit(request))
   ipcMain.handle('imageEdit:saveAsNew', (_e, editId: string) => imageEditService.saveAsNew(editId))

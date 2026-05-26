@@ -9,8 +9,8 @@ export function SettingsPage() {
   const [form, setForm] = useState<AppConfig | null>(null)
   const [saved, setSaved] = useState(false)
   const [embedStats, setEmbedStats] = useState<{ total: number; indexed: number; pending: number } | null>(null)
-  const [backfilling, setBackfilling] = useState(false)
-  const [backfillMsg, setBackfillMsg] = useState('')
+  const [embedBusy, setEmbedBusy] = useState(false)
+  const [embedMsg, setEmbedMsg] = useState('')
   const [lanMsg, setLanMsg] = useState('')
 
   useEffect(() => {
@@ -58,18 +58,35 @@ export function SettingsPage() {
     }
   }
 
-  const handleBackfill = async () => {
-    setBackfilling(true)
-    setBackfillMsg('')
+  const refreshEmbedStats = async () => {
+    setEmbedStats(await window.api.embedding.getStats())
+  }
+
+  const runEmbedTask = async (task: 'backfill' | 'rebuild') => {
+    setEmbedBusy(true)
+    setEmbedMsg('')
     try {
-      const res = await window.api.embedding.backfill()
-      setBackfillMsg(`完成：新建 ${res.indexed} 条，失败 ${res.failed} 条`)
-      setEmbedStats(await window.api.embedding.getStats())
+      const res =
+        task === 'backfill' ? await window.api.embedding.backfill() : await window.api.embedding.rebuild()
+      const action = task === 'backfill' ? '补建' : '重建'
+      setEmbedMsg(`${action}完成：成功 ${res.indexed} 条，失败 ${res.failed} 条`)
+      await refreshEmbedStats()
     } catch (err) {
-      setBackfillMsg(`失败：${err instanceof Error ? err.message : String(err)}`)
+      setEmbedMsg(`失败：${err instanceof Error ? err.message : String(err)}`)
     } finally {
-      setBackfilling(false)
+      setEmbedBusy(false)
     }
+  }
+
+  const handleBackfill = () => runEmbedTask('backfill')
+
+  const handleRebuild = () => {
+    if (
+      !confirm('将清空现有向量索引并全部重新建立，可能需要较长时间并消耗 API 额度，是否继续？')
+    ) {
+      return
+    }
+    runEmbedTask('rebuild')
   }
 
   const handleSave = async () => {
@@ -264,20 +281,33 @@ export function SettingsPage() {
             )}
             {embedStats.staleModel != null && embedStats.staleModel > 0 && (
               <p className="text-orange-500">
-                有 {embedStats.staleModel} 条旧模型索引，请点击「补建向量索引」更新
+                有 {embedStats.staleModel} 条旧模型索引，请点击「重新建立向量索引」更新
               </p>
             )}
           </div>
         )}
-        <button
-          type="button"
-          onClick={handleBackfill}
-          disabled={backfilling || !form.embedding.enabled}
-          className="px-4 py-2 rounded-apple-sm border border-[var(--color-accent)] text-[var(--color-accent)] text-sm disabled:opacity-50"
-        >
-          {backfilling ? '正在补建索引...' : '补建向量索引（已有图片）'}
-        </button>
-        {backfillMsg && <p className="text-xs text-[var(--color-accent)]">{backfillMsg}</p>}
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={handleBackfill}
+            disabled={embedBusy || !form.embedding.enabled}
+            className="px-4 py-2 rounded-apple-sm border border-[var(--color-accent)] text-[var(--color-accent)] text-sm disabled:opacity-50"
+          >
+            {embedBusy ? '处理中...' : '补建向量索引（仅缺失）'}
+          </button>
+          <button
+            type="button"
+            onClick={handleRebuild}
+            disabled={embedBusy || !form.embedding.enabled}
+            className="px-4 py-2 rounded-apple-sm border border-orange-500 text-orange-500 text-sm disabled:opacity-50"
+          >
+            {embedBusy ? '处理中...' : '重新建立向量索引（全部）'}
+          </button>
+        </div>
+        <p className="text-[10px] text-[var(--color-muted)]">
+          补建仅处理尚未索引的图片；更换 Embedding 模型或搜索异常时，请使用「重新建立」清空后全量重建
+        </p>
+        {embedMsg && <p className="text-xs text-[var(--color-accent)]">{embedMsg}</p>}
       </section>
 
       <section className="mb-6 p-5 rounded-apple bg-[var(--color-card)] border border-[var(--color-border)] space-y-4">

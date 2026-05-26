@@ -67,6 +67,32 @@ export class EmbeddingService {
     return { indexed, failed, skipped: 0 }
   }
 
+  async rebuildAll(): Promise<{ indexed: number; failed: number; skipped: number }> {
+    const config = configService.load()
+    if (!config.embedding.enabled) {
+      return { indexed: 0, failed: 0, skipped: 0 }
+    }
+
+    const db = getDb()
+    db.prepare('DELETE FROM media_embeddings').run()
+
+    const rows = db.prepare('SELECT media_id FROM analysis_results').all() as Array<{ media_id: string }>
+
+    let indexed = 0
+    let failed = 0
+    for (const { media_id } of rows) {
+      try {
+        await this.indexMedia(media_id)
+        const exists = db.prepare('SELECT 1 FROM media_embeddings WHERE media_id = ?').get(media_id)
+        if (exists) indexed++
+        else failed++
+      } catch {
+        failed++
+      }
+    }
+    return { indexed, failed, skipped: 0 }
+  }
+
   getStats(): { total: number; indexed: number; pending: number; staleModel: number; enabled: boolean } {
     const config = configService.load()
     const db = getDb()

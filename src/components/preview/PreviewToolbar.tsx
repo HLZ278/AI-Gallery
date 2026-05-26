@@ -5,7 +5,10 @@ import {
   IconRotateLeft,
   IconRotateRight,
   IconFullscreen,
-  IconFullscreenExit
+  IconFullscreenExit,
+  IconZoomIn,
+  IconZoomOut,
+  IconZoomReset
 } from './icons'
 
 interface Props {
@@ -21,6 +24,13 @@ interface Props {
   onRotateLeft?: () => void
   onRotateRight?: () => void
   onToggleFullscreen?: () => void
+  showZoom?: boolean
+  zoomPercent?: number
+  canZoomIn?: boolean
+  canZoomOut?: boolean
+  onZoomIn?: () => void
+  onZoomOut?: () => void
+  onZoomReset?: () => void
 }
 
 function ToolbarButton({
@@ -87,7 +97,14 @@ export function PreviewBottomBar({
   onNext,
   onRotateLeft,
   onRotateRight,
-  onToggleFullscreen
+  onToggleFullscreen,
+  showZoom,
+  zoomPercent,
+  canZoomIn,
+  canZoomOut,
+  onZoomIn,
+  onZoomOut,
+  onZoomReset
 }: Pick<
   Props,
   | 'showRotation'
@@ -98,7 +115,16 @@ export function PreviewBottomBar({
   | 'onRotateLeft'
   | 'onRotateRight'
   | 'onToggleFullscreen'
+  | 'showZoom'
+  | 'zoomPercent'
+  | 'canZoomIn'
+  | 'canZoomOut'
+  | 'onZoomIn'
+  | 'onZoomOut'
+  | 'onZoomReset'
 >) {
+  const showDividerBeforeFullscreen = onToggleFullscreen && (showNavigation || showRotation || showZoom)
+
   return (
     <div className="absolute bottom-0 inset-x-0 flex items-center justify-center gap-2 px-4 py-4 bg-gradient-to-t from-black/70 to-transparent pointer-events-none">
       <div className="pointer-events-auto flex items-center gap-1 px-2 py-1.5 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/10">
@@ -110,7 +136,7 @@ export function PreviewBottomBar({
             <ToolbarButton onClick={onNext} label="下一张">
               <IconChevronRight className="w-5 h-5" />
             </ToolbarButton>
-            {(showRotation || onToggleFullscreen) && <div className="w-px h-5 bg-white/15 mx-1" />}
+            {(showRotation || showZoom || onToggleFullscreen) && <div className="w-px h-5 bg-white/15 mx-1" />}
           </>
         )}
         {showRotation && (
@@ -121,7 +147,27 @@ export function PreviewBottomBar({
             <ToolbarButton onClick={onRotateRight} label="顺时针旋转">
               <IconRotateRight />
             </ToolbarButton>
-            {onToggleFullscreen && <div className="w-px h-5 bg-white/15 mx-1" />}
+            {(showZoom || onToggleFullscreen) && <div className="w-px h-5 bg-white/15 mx-1" />}
+          </>
+        )}
+        {showZoom && (
+          <>
+            <ToolbarButton onClick={onZoomOut} label="缩小" className={!canZoomOut ? 'opacity-30 pointer-events-none' : ''}>
+              <IconZoomOut />
+            </ToolbarButton>
+            <button
+              type="button"
+              onClick={onZoomReset}
+              title="重置缩放"
+              aria-label="重置缩放"
+              className="min-w-[3rem] h-9 px-2 rounded-full text-white/85 hover:bg-white/15 hover:text-white text-xs font-medium transition-colors"
+            >
+              {zoomPercent ?? 100}%
+            </button>
+            <ToolbarButton onClick={onZoomIn} label="放大" className={!canZoomIn ? 'opacity-30 pointer-events-none' : ''}>
+              <IconZoomIn />
+            </ToolbarButton>
+            {showDividerBeforeFullscreen && <div className="w-px h-5 bg-white/15 mx-1" />}
           </>
         )}
         {onToggleFullscreen && (

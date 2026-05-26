@@ -18,8 +18,10 @@ import type {
   ImageEditRequest,
   ImageEditResult,
   ImageEditSession,
-  MediaItem
+  MediaItem,
+  MediaType
 } from '../../../shared/types'
+import { getImageEditSupportedTypes, resolveImageEditMediaTypes } from '../../../shared/imageEditPolicy'
 
 interface PendingEdit {
   tempFilePath: string
@@ -33,8 +35,6 @@ interface PendingEdit {
   height: number
   requestId?: string
 }
-
-const EDITABLE_TYPES = new Set(['photo', 'gif', 'live_photo', 'panorama', 'burst'])
 
 export class ImageEditService {
   private pending = new Map<string, PendingEdit>()
@@ -54,19 +54,29 @@ export class ImageEditService {
     this.rehydratePending(session.messages)
   }
 
-  listLibraryImages(libraryId: string, page = 1, pageSize = 120): MediaItem[] {
+  listLibraryImages(
+    libraryId: string,
+    page = 1,
+    pageSize = 120,
+    mediaTypes?: MediaType[]
+  ): MediaItem[] {
+    const config = configService.load()
+    const types = resolveImageEditMediaTypes(config, mediaTypes)
+    if (types.length === 0) return []
+
     const offset = (page - 1) * pageSize
+    const typePlaceholders = types.map(() => '?').join(', ')
     const rows = getDb()
       .prepare(`
         SELECT m.*, l.name as library_name, md.duration_ms, md.frame_count
         FROM media_items m
         ${MEDIA_JOIN}
         WHERE m.library_id = ?
-          AND m.media_type IN ('photo', 'gif', 'live_photo', 'panorama', 'burst')
+          AND m.media_type IN (${typePlaceholders})
         ORDER BY m.taken_at DESC, m.imported_at DESC
         LIMIT ? OFFSET ?
       `)
-      .all(libraryId, pageSize, offset) as Array<Record<string, unknown>>
+      .all(libraryId, ...types, pageSize, offset) as Array<Record<string, unknown>>
     return rows.map(mapMediaRow)
   }
 
@@ -128,8 +138,9 @@ export class ImageEditService {
       .map(mapMediaRow)
 
     if (items.length !== mediaIds.length) throw new Error('部分源图片不存在')
+    const supportedTypes = new Set(getImageEditSupportedTypes(config))
     for (const item of items) {
-      if (!EDITABLE_TYPES.has(item.mediaType)) {
+      if (!supportedTypes.has(item.mediaType)) {
         throw new Error(`「${basename(item.filePath)}」不是可编辑的图片类型`)
       }
       if (!existsSync(item.filePath)) throw new Error(`源文件不存在：${basename(item.filePath)}`)

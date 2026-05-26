@@ -99,10 +99,12 @@ export function DetailPanel({ item, analysis, onClose, onRetry }: Props) {
             <Section title="描述" content={analysis.description} />
             <TagSection title="物体" tags={analysis.objects} />
             <TagSection title="人物" tags={analysis.people} />
+            <TagSection title="IP / 角色 / 作品" tags={analysis.ipReferences} />
             <Section title="场景" content={analysis.scene} />
             <Section title="位置" content={analysis.location} />
             <Section title="故事" content={analysis.story} />
             <TagSection title="潮流标签" tags={analysis.trendTags} />
+            {analysis.isMeme && <Section title="梗图" content="是" />}
             <Section title="氛围" content={analysis.mood} />
             {analysis.ocrText && <Section title="图中文字" content={analysis.ocrText} />}
             {retryButton}

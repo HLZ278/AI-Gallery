@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3'
 import { buildExifGeoText } from '../domain/ExifGeoText'
+import { parseAnalysisExtendedFields } from '../domain/AnalysisPayloadMapper'
 import { upsertMediaFts } from '../domain/MediaFtsIndexer'
 
 function hasColumn(db: Database.Database, table: string, column: string): boolean {
@@ -30,11 +31,12 @@ function backfillGeoText(db: Database.Database): void {
   }
 }
 
-function reindexFtsWithGeo(db: Database.Database): void {
+function reindexFtsFromAnalysis(db: Database.Database): void {
   const rows = db
     .prepare(`
       SELECT
         a.media_id,
+        a.raw_json,
         a.description,
         a.objects,
         a.people,
@@ -50,6 +52,7 @@ function reindexFtsWithGeo(db: Database.Database): void {
     .all() as Array<Record<string, unknown>>
 
   for (const row of rows) {
+    const extended = parseAnalysisExtendedFields((row.raw_json as string) ?? '{}')
     upsertMediaFts(
       db,
       row.media_id as string,
@@ -61,7 +64,8 @@ function reindexFtsWithGeo(db: Database.Database): void {
         location: (row.location as string) ?? '',
         story: (row.story as string) ?? '',
         trend_tags: JSON.parse((row.trend_tags as string) || '[]') as string[],
-        ocr_text: (row.ocr_text as string) ?? ''
+        ocr_text: (row.ocr_text as string) ?? '',
+        ip_references: extended.ip_references ?? []
       },
       (row.geo_text as string | null) ?? undefined
     )
@@ -81,6 +85,10 @@ function reindexFtsWithGeo(db: Database.Database): void {
   }
 }
 
+function reindexFtsWithGeo(db: Database.Database): void {
+  reindexFtsFromAnalysis(db)
+}
+
 export function runMigrations(db: Database.Database): void {
   if (!hasColumn(db, 'media_metadata', 'geo_text')) {
     db.prepare('ALTER TABLE media_metadata ADD COLUMN geo_text TEXT').run()
@@ -91,5 +99,10 @@ export function runMigrations(db: Database.Database): void {
   if (!migrationApplied(db, 'geo_search_v1')) {
     reindexFtsWithGeo(db)
     markMigrationApplied(db, 'geo_search_v1')
+  }
+
+  if (!migrationApplied(db, 'entity_fts_v1')) {
+    reindexFtsFromAnalysis(db)
+    markMigrationApplied(db, 'entity_fts_v1')
   }
 }

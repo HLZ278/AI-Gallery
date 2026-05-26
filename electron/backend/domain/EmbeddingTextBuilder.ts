@@ -3,7 +3,17 @@ import type { AnalysisResult } from '../../../shared/types'
 export function buildEmbeddingDocument(
   analysis: Pick<
     AnalysisResult,
-    'description' | 'objects' | 'people' | 'scene' | 'location' | 'story' | 'trendTags' | 'mood' | 'colors' | 'ocrText'
+    | 'description'
+    | 'objects'
+    | 'people'
+    | 'scene'
+    | 'location'
+    | 'story'
+    | 'trendTags'
+    | 'mood'
+    | 'colors'
+    | 'ocrText'
+    | 'ipReferences'
   >,
   geoText?: string | null
 ): string {
@@ -15,6 +25,7 @@ export function buildEmbeddingDocument(
   if (analysis.location) parts.push(`位置：${analysis.location}`)
   if (geoText?.trim()) parts.push(`GPS：${geoText.trim()}`)
   if (analysis.people.length) parts.push(`人物：${analysis.people.join('、')}`)
+  if (analysis.ipReferences?.length) parts.push(`IP/角色/作品：${analysis.ipReferences.join('、')}`)
   if (analysis.objects.length) parts.push(`物体：${analysis.objects.join('、')}`)
   if (analysis.trendTags.length) parts.push(`标签：${analysis.trendTags.join('、')}`)
   if (analysis.mood) parts.push(`氛围：${analysis.mood}`)

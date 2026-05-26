@@ -3,8 +3,9 @@ import { configService } from '../services/ConfigService'
 import { imageAnalyzer } from '../infra/LLMClient'
 import { mediaRepository } from '../infra/FileScanner'
 import { upsertMediaFts } from './MediaFtsIndexer'
+import { parseAnalysisExtendedFields, toAnalysisFtsPayload } from './AnalysisPayloadMapper'
 import { embeddingService } from '../services/EmbeddingService'
-import type { AnalysisProgress, AnalysisResult } from '../../../shared/types'
+import type { AnalysisProgress, AnalysisResult, ImageAnalysisPayload } from '../../../shared/types'
 
 type ProgressCallback = (progress: AnalysisProgress) => void
 
@@ -178,18 +179,7 @@ export class AnalysisQueue {
 
   private saveAnalysis(
     mediaId: string,
-    payload: {
-      description: string
-      objects: string[]
-      people: string[]
-      scene: string
-      location: string
-      story: string
-      trend_tags: string[]
-      mood: string
-      colors: string[]
-      ocr_text: string
-    },
+    payload: ImageAnalysisPayload,
     modelName: string,
     promptVersion: string
   ): void {
@@ -209,7 +199,7 @@ export class AnalysisQueue {
       JSON.stringify(payload.colors), payload.ocr_text, modelName, promptVersion, Date.now()
     )
 
-    upsertMediaFts(db, mediaId, payload)
+    upsertMediaFts(db, mediaId, toAnalysisFtsPayload(payload))
   }
 }
 
@@ -220,9 +210,11 @@ function sleep(ms: number): Promise<void> {
 export const analysisQueue = new AnalysisQueue()
 
 export function mapAnalysisRow(row: Record<string, unknown>): AnalysisResult {
+  const rawJson = row.raw_json as string
+  const extended = parseAnalysisExtendedFields(rawJson)
   return {
     mediaId: row.media_id as string,
-    rawJson: row.raw_json as string,
+    rawJson,
     description: row.description as string,
     objects: JSON.parse((row.objects as string) || '[]'),
     people: JSON.parse((row.people as string) || '[]'),
@@ -233,6 +225,8 @@ export function mapAnalysisRow(row: Record<string, unknown>): AnalysisResult {
     mood: row.mood as string,
     colors: JSON.parse((row.colors as string) || '[]'),
     ocrText: row.ocr_text as string,
+    ipReferences: extended.ip_references ?? [],
+    isMeme: extended.is_meme ?? false,
     modelName: row.model_name as string,
     promptVersion: row.prompt_version as string,
     analyzedAt: row.analyzed_at as number

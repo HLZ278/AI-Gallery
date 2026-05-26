@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { MediaItem } from '../../shared/types'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { MediaItem, MediaType } from '../../shared/types'
+import { formatImageEditExtensions, getImageEditSupportedTypes } from '../../shared/imageEditPolicy'
 import { MediaGridItem } from '../components/MediaGrid'
 import { ImageEditResultCard, type ImageEditDecision } from '../components/imageEdit/ImageEditResultCard'
 import { useAppStore } from '../store/appStore'
 import { buildImageEditSession, useImageEditStore } from '../store/imageEditStore'
+import { mediaTypeLabel } from '../utils/formatMedia'
 
 function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -25,6 +27,7 @@ export function ImageEditPage() {
   const setHydrated = useImageEditStore((s) => s.setHydrated)
 
   const [libraryImages, setLibraryImages] = useState<MediaItem[]>([])
+  const [selectedTypes, setSelectedTypes] = useState<MediaType[]>([])
   const [input, setInput] = useState('')
   const [editing, setEditing] = useState(false)
   const [decisionBusyId, setDecisionBusyId] = useState<string | null>(null)
@@ -34,7 +37,11 @@ export function ImageEditPage() {
   const imageEditConfig = config?.imageEdit
   const maxInputImages = imageEditConfig?.maxInputImages ?? 3
   const availableSizes = imageEditConfig?.availableSizes ?? []
-  const defaultSize = imageEditConfig?.size ?? ''
+  const supportedMediaTypes = useMemo(
+    () => (config ? getImageEditSupportedTypes(config) : []),
+    [config]
+  )
+  const formatHint = config ? formatImageEditExtensions(config) : 'JPG/PNG/WEBP'
 
   useEffect(() => {
     if (hydrated) return
@@ -53,8 +60,20 @@ export function ImageEditPage() {
       setLibraryImages([])
       return
     }
-    void window.api.imageEdit.listLibraryImages(libraryId, 1, 120).then(setLibraryImages)
-  }, [libraryId])
+    const types = selectedTypes.length ? selectedTypes : undefined
+    void window.api.imageEdit.listLibraryImages(libraryId, 1, 120, types).then(setLibraryImages)
+  }, [libraryId, selectedTypes])
+
+  useEffect(() => {
+    if (supportedMediaTypes.length === 0) return
+    setSourceMediaIds((prev) => {
+      const allowed = new Set(
+        libraryImages.filter((item) => supportedMediaTypes.includes(item.mediaType)).map((item) => item.id)
+      )
+      const next = prev.filter((id) => allowed.has(id))
+      return next.length === prev.length ? prev : next
+    })
+  }, [libraryImages, supportedMediaTypes, setSourceMediaIds])
 
   useEffect(() => {
     if (!hydrated) return
@@ -95,6 +114,12 @@ export function ImageEditPage() {
     },
     [setMessages]
   )
+
+  const toggleType = (type: MediaType) => {
+    setSelectedTypes((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+    )
+  }
 
   const handleSend = async () => {
     const prompt = input.trim()
@@ -163,7 +188,8 @@ export function ImageEditPage() {
         overwriteResult
       })
       if (libraryId) {
-        void window.api.imageEdit.listLibraryImages(libraryId, 1, 120).then(setLibraryImages)
+        const types = selectedTypes.length ? selectedTypes : undefined
+        void window.api.imageEdit.listLibraryImages(libraryId, 1, 120, types).then(setLibraryImages)
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : String(err))
@@ -201,7 +227,7 @@ export function ImageEditPage() {
         <div>
           <h1 className="text-lg font-semibold">AI 图片编辑</h1>
           <p className="text-xs text-[var(--color-muted)] mt-1">
-            {imageEditConfig?.model ?? 'qwen-image-2.0-pro'} · 支持 1~{maxInputImages} 张输入 · JPG/PNG/WEBP/GIF 等 · 单张 ≤10MB
+            {imageEditConfig?.model ?? 'qwen-image-2.0-pro'} · 支持 1~{maxInputImages} 张输入 · {formatHint} · 单张 ≤10MB
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -210,6 +236,7 @@ export function ImageEditPage() {
             onChange={(e) => {
               setLibraryId(e.target.value)
               setSourceMediaIds([])
+              setSelectedTypes([])
             }}
             disabled={libraries.length === 0}
             className="px-3 py-1.5 rounded-apple-sm bg-[var(--color-card)] border border-[var(--color-border)] text-xs min-w-[140px]"
@@ -241,6 +268,24 @@ export function ImageEditPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <aside className="w-56 shrink-0 border-r border-[var(--color-border)] overflow-y-auto p-3 space-y-2">
           <p className="text-xs font-medium text-[var(--color-muted)] px-1">选择源图</p>
+          {supportedMediaTypes.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-1">
+              {supportedMediaTypes.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => toggleType(type)}
+                  className={`px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
+                    selectedTypes.includes(type)
+                      ? 'bg-[var(--color-accent)] text-white border-transparent'
+                      : 'border-[var(--color-border)] hover:bg-black/5'
+                  }`}
+                >
+                  {mediaTypeLabel(type)}
+                </button>
+              ))}
+            </div>
+          )}
           {libraryImages.length === 0 ? (
             <p className="text-xs text-[var(--color-muted)] px-1">该图库暂无可编辑图片</p>
           ) : (

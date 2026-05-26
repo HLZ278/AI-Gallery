@@ -6,6 +6,7 @@ import { VideoPlayerControls, type VideoPlayerHandle } from './preview/VideoPlay
 import { PreviewTopBar, PreviewBottomBar, PreviewNavButton } from './preview/PreviewToolbar'
 import { PreviewOverlay } from './preview/PreviewOverlay'
 import { useFullscreen } from './preview/useFullscreen'
+import { useImageZoom } from './preview/useImageZoom'
 
 interface Props {
   items: MediaItem[]
@@ -22,6 +23,7 @@ export function MediaPreviewModal({ items, initialIndex = 0, onClose }: Props) {
   const { isFullscreen, toggleFullscreen } = useFullscreen(containerRef)
 
   const item = items[index]
+  const zoom = useImageZoom(item?.id ?? index)
   const canNavigate = items.length > 1
   const isVideo = item?.mediaType === 'video'
   const showRotation = !isVideo
@@ -59,6 +61,17 @@ export function MediaPreviewModal({ items, initialIndex = 0, onClose }: Props) {
         case 'F':
           void toggleFullscreen()
           break
+        case '+':
+        case '=':
+          if (!isVideo) zoom.zoomIn()
+          break
+        case '-':
+        case '_':
+          if (!isVideo) zoom.zoomOut()
+          break
+        case '0':
+          if (!isVideo) zoom.resetZoom()
+          break
         case 'c':
         case 'C':
           if (e.ctrlKey || e.metaKey) {
@@ -76,7 +89,7 @@ export function MediaPreviewModal({ items, initialIndex = 0, onClose }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, goPrev, goNext, canNavigate, toggleFullscreen, isFullscreen, contextMenu, isVideo, item])
+  }, [onClose, goPrev, goNext, canNavigate, toggleFullscreen, isFullscreen, contextMenu, isVideo, item, zoom])
 
   const handleContextAction = async (action: MediaContextAction) => {
     if (!item) return
@@ -112,13 +125,14 @@ export function MediaPreviewModal({ items, initialIndex = 0, onClose }: Props) {
     >
       <div className="absolute inset-0 flex items-center justify-center pt-14 pb-24 px-16 pointer-events-none">
         <div
-          className="flex items-center justify-center w-full h-full min-h-0 pointer-events-none"
+          ref={zoom.viewportRef}
+          className="flex items-center justify-center w-full h-full min-h-0 pointer-events-auto overflow-hidden"
           onDoubleClick={() => {
             if (!isVideo) void toggleFullscreen()
           }}
         >
           {isVideo ? (
-            <div className="pointer-events-auto w-full max-h-full flex justify-center">
+            <div className="w-full max-h-full flex justify-center">
               <VideoPlayerControls ref={videoRef} src={fileUrl} autoPlay />
             </div>
           ) : (
@@ -126,8 +140,16 @@ export function MediaPreviewModal({ items, initialIndex = 0, onClose }: Props) {
               src={fileUrl}
               alt=""
               draggable={false}
-              className="pointer-events-auto max-w-full max-h-full object-contain rounded-xl shadow-2xl transition-transform duration-200"
-              style={{ transform: `rotate(${rotation}deg)` }}
+              className={`max-w-full max-h-full object-contain rounded-xl shadow-2xl transition-transform duration-100 ${
+                zoom.scale > 1 ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in'
+              }`}
+              style={{
+                transform: `translate(${zoom.offset.x}px, ${zoom.offset.y}px) scale(${zoom.scale}) rotate(${rotation}deg)`
+              }}
+              onPointerDown={zoom.handlePointerDown}
+              onPointerMove={zoom.handlePointerMove}
+              onPointerUp={zoom.handlePointerUp}
+              onPointerCancel={zoom.handlePointerCancel}
             />
           )}
         </div>
@@ -147,6 +169,13 @@ export function MediaPreviewModal({ items, initialIndex = 0, onClose }: Props) {
           <PreviewBottomBar
             showRotation={showRotation}
             showNavigation={canNavigate}
+            showZoom
+            zoomPercent={zoom.zoomPercent}
+            canZoomIn={zoom.canZoomIn}
+            canZoomOut={zoom.canZoomOut}
+            onZoomIn={zoom.zoomIn}
+            onZoomOut={zoom.zoomOut}
+            onZoomReset={zoom.resetZoom}
             isFullscreen={isFullscreen}
             onPrev={goPrev}
             onNext={goNext}

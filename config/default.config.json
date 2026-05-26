@@ -8,9 +8,9 @@
     "maxRetries": 2
   },
   "analysis": {
-    "promptVersion": "1.0",
-    "videoPromptVersion": "1.0",
-    "gifPromptVersion": "1.0",
+    "promptVersion": "1.1",
+    "videoPromptVersion": "1.1",
+    "gifPromptVersion": "1.1",
     "videoFrameCount": 8,
     "gifFrameCount": 8,
     "sequenceFrameFps": 2,
@@ -77,7 +77,8 @@
     "maxInputBytes": 10485760,
     "maxInputEdgePx": 3072,
     "minInputEdgePx": 384,
-    "allowedExtensions": [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp", ".gif"],
+    "allowedExtensions": [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"],
+    "supportedMediaTypes": ["photo", "live_photo", "panorama", "burst"],
     "negativePrompt": "低分辨率，低画质，肢体畸形，手指畸形，画面过饱和，蜡像感，人脸无细节，过度光滑，画面具有AI感。构图混乱。文字模糊，扭曲。",
     "promptExtend": true,
     "watermark": false,

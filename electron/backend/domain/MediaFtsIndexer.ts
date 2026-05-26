@@ -9,6 +9,7 @@ export interface AnalysisFtsPayload {
   story: string
   trend_tags: string[]
   ocr_text: string
+  ip_references?: string[]
 }
 
 function mergeLocationText(aiLocation: string, geoText: string): string {
@@ -34,6 +35,8 @@ export function upsertMediaFts(
   if (!payload && !geo) return
 
   const location = mergeLocationText(payload?.location ?? '', geo)
+  const peopleText = [...(payload?.people ?? []), ...(payload?.ip_references ?? [])].join(' ')
+  const trendText = [...(payload?.trend_tags ?? []), ...(payload?.ip_references ?? [])].join(' ')
 
   db.prepare(`
     INSERT INTO media_fts (media_id, description, objects, people, scene, location, story, trend_tags, ocr_text)
@@ -42,11 +45,11 @@ export function upsertMediaFts(
     mediaId,
     payload?.description ?? '',
     (payload?.objects ?? []).join(' '),
-    (payload?.people ?? []).join(' '),
+    peopleText,
     payload?.scene ?? '',
     location,
     payload?.story ?? '',
-    (payload?.trend_tags ?? []).join(' '),
+    trendText,
     payload?.ocr_text ?? ''
   )
 }

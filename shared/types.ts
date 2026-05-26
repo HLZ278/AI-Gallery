@@ -59,6 +59,7 @@ export interface AppConfig {
     maxInputEdgePx: number
     minInputEdgePx: number
     allowedExtensions: string[]
+    supportedMediaTypes: MediaType[]
     negativePrompt: string
     promptExtend: boolean
     watermark: boolean
@@ -131,6 +132,8 @@ export interface AnalysisResult {
   mood: string
   colors: string[]
   ocrText: string
+  ipReferences: string[]
+  isMeme: boolean
   modelName: string
   promptVersion: string
   analyzedAt: number
@@ -338,6 +341,7 @@ export interface IpcApi {
   }
   embedding: {
     backfill: () => Promise<{ indexed: number; failed: number; skipped?: number }>
+    rebuild: () => Promise<{ indexed: number; failed: number; skipped?: number }>
     getStats: () => Promise<{ total: number; indexed: number; pending: number; staleModel?: number; enabled?: boolean }>
   }
   imageGen: {
@@ -348,7 +352,12 @@ export interface IpcApi {
     saveSession: (session: ImageGenSession) => Promise<void>
   }
   imageEdit: {
-    listLibraryImages: (libraryId: string, page?: number, pageSize?: number) => Promise<MediaItem[]>
+    listLibraryImages: (
+      libraryId: string,
+      page?: number,
+      pageSize?: number,
+      mediaTypes?: MediaType[]
+    ) => Promise<MediaItem[]>
     edit: (request: ImageEditRequest) => Promise<ImageEditResult>
     saveAsNew: (editId: string) => Promise<ImageEditAcceptResult>
     overwrite: (editId: string) => Promise<ImageEditOverwriteResult>

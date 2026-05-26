@@ -55,6 +55,7 @@ const api = {
   },
   embedding: {
     backfill: () => ipcRenderer.invoke('embedding:backfill'),
+    rebuild: () => ipcRenderer.invoke('embedding:rebuild'),
     getStats: () => ipcRenderer.invoke('embedding:stats')
   },
   imageGen: {
@@ -65,8 +66,8 @@ const api = {
     saveSession: (session: ImageGenSession) => ipcRenderer.invoke('imageGen:saveSession', session)
   },
   imageEdit: {
-    listLibraryImages: (libraryId: string, page?: number, pageSize?: number) =>
-      ipcRenderer.invoke('imageEdit:listLibraryImages', libraryId, page, pageSize),
+    listLibraryImages: (libraryId: string, page?: number, pageSize?: number, mediaTypes?: MediaType[]) =>
+      ipcRenderer.invoke('imageEdit:listLibraryImages', libraryId, page, pageSize, mediaTypes),
     edit: (request: ImageEditRequest) => ipcRenderer.invoke('imageEdit:edit', request),
     saveAsNew: (editId: string) => ipcRenderer.invoke('imageEdit:saveAsNew', editId),
     overwrite: (editId: string) => ipcRenderer.invoke('imageEdit:overwrite', editId),

@@ -51,7 +51,7 @@ export class VectorSearchService {
           page,
           pageSize,
           searchMode: 'vector',
-          llmReason: `向量索引模型已变更（当前 ${model}），请在设置中点击「补建向量索引」重新建立`
+          llmReason: `向量索引模型已变更（当前 ${model}），请在设置中点击「重新建立向量索引」`
         }
       }
       return {
@@ -88,7 +88,7 @@ export class VectorSearchService {
         page,
         pageSize,
         searchMode: 'vector',
-        llmReason: '向量维度与当前模型不一致，请在设置中补建向量索引'
+        llmReason: '向量维度与当前模型不一致，请在设置中重新建立向量索引'
       }
     }
 
