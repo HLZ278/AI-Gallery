@@ -192,33 +192,7 @@ export function SettingsPage() {
 
       <section className="mb-6 p-5 rounded-apple bg-[var(--color-card)] border border-[var(--color-border)] space-y-4">
         <h2 className="font-semibold">分析</h2>
-        <div className="grid grid-cols-3 gap-4">
-          <Field label="图片提示词版本">
-            <input
-              type="text"
-              value={form.analysis.promptVersion}
-              onChange={(e) => updateAnalysis('promptVersion', e.target.value)}
-              className="field-input"
-            />
-          </Field>
-          <Field label="视频提示词版本">
-            <input
-              type="text"
-              value={form.analysis.videoPromptVersion}
-              onChange={(e) => updateAnalysis('videoPromptVersion', e.target.value)}
-              className="field-input"
-            />
-          </Field>
-          <Field label="GIF 提示词版本">
-            <input
-              type="text"
-              value={form.analysis.gifPromptVersion}
-              onChange={(e) => updateAnalysis('gifPromptVersion', e.target.value)}
-              className="field-input"
-            />
-          </Field>
-        </div>
-        <p className="text-[10px] text-[var(--color-muted)]">升级提示词后请重新分析；v1.1 强化人物/IP/地点识别</p>
+        <p className="text-[10px] text-[var(--color-muted)]">分析提示词将自动使用最新版本；升级应用后请对旧图片重新分析以更新识别结果</p>
         <div className="grid grid-cols-2 gap-4">
           <Field label="图片最大边长 (px)">
             <input

@@ -5,6 +5,7 @@ import { APP_DATA_DIR_NAME, APP_DISPLAY_NAME } from '../shared/appMeta'
 import { registerIpcHandlers } from './ipc/handlers'
 import { closeDb } from './backend/db/DatabaseManager'
 import { lanServerService } from './backend/services/LanServerService'
+import { libraryWatcherService } from './backend/services/LibraryWatcherService'
 
 let mainWindow: BrowserWindow | null = null
 

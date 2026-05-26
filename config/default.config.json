@@ -8,18 +8,14 @@
     "maxRetries": 2
   },
   "analysis": {
-    "promptVersion": "1.1",
-    "videoPromptVersion": "1.1",
-    "gifPromptVersion": "1.1",
     "videoFrameCount": 8,
-    "gifFrameCount": 8,
+    "gifFrameCount": 5,
     "sequenceFrameFps": 2,
     "sequenceMinFrames": 4,
     "maxImageEdgePx": 1280,
     "skipIfHashUnchanged": true
   },
   "search": {
-    "llmSearchPromptVersion": "1.0",
     "maxCatalogItems": 500,
     "chunkSize": 80
   },

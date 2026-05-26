@@ -2,6 +2,26 @@
 
 > 每一次功能变动均记录于此。版本快照见 `versions/` 与 `snapshots/`。
 
+## [1.7.1] - 2026-05-26
+
+### 提示词自动最新
+
+- 新增 `PromptRegistry`：扫描 `prompts/` 目录取最高版本
+- `PromptBuilder` 不再读取配置中的提示词版本号
+- 分析结果 `promptVersion` 来自提示词 JSON 内 `version` 字段
+- 设置页移除图片/视频/GIF 提示词版本输入
+- 配置移除 `promptVersion`、`videoPromptVersion`、`gifPromptVersion`、`llmSearchPromptVersion`
+
+### 搜索网格与启动修复
+
+- `MediaGrid`：修复虚拟滚动行高与 `aspect-square` 冲突导致重叠
+- `MediaGrid`：修复搜索完成后容器未测量导致网格空白
+- `main.ts`：补全 `libraryWatcherService` 导入
+
+### 默认配置
+
+- GIF 抽帧默认 5 帧（视频 8 帧、帧序列 fps 2 不变）
+
 ## [1.7.0] - 2026-05-23
 
 ### GIF 多帧 AI 分析

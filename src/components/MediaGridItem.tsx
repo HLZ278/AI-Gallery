@@ -10,9 +10,11 @@ interface Props {
   selected?: boolean
   focused?: boolean
   score?: number
+  /** 虚拟网格内由父级固定单元格尺寸，避免 aspect-square 与行高不一致 */
+  fillCell?: boolean
 }
 
-export function MediaGridItem({ item, onClick, onDoubleClick, onContextMenu, selected, focused, score }: Props) {
+export function MediaGridItem({ item, onClick, onDoubleClick, onContextMenu, selected, focused, score, fillCell }: Props) {
   return (
     <button
       type="button"
@@ -26,7 +28,9 @@ export function MediaGridItem({ item, onClick, onDoubleClick, onContextMenu, sel
         e.preventDefault()
         onContextMenu?.(e)
       }}
-      className={`group relative block w-full aspect-square rounded-apple overflow-hidden bg-[var(--color-card)] border transition-shadow duration-200 hover:shadow-lg hover:z-10 ${
+      className={`group relative block w-full rounded-apple overflow-hidden bg-[var(--color-card)] border transition-shadow duration-200 hover:shadow-lg hover:z-10 ${
+        fillCell ? 'h-full' : 'aspect-square'
+      } ${
         selected
           ? focused
             ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]'

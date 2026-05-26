@@ -12,9 +12,6 @@ export interface AppConfig {
     maxRetries: number
   }
   analysis: {
-    promptVersion: string
-    videoPromptVersion: string
-    gifPromptVersion: string
     videoFrameCount: number
     gifFrameCount: number
     sequenceFrameFps: number
@@ -23,7 +20,6 @@ export interface AppConfig {
     skipIfHashUnchanged: boolean
   }
   search: {
-    llmSearchPromptVersion: string
     maxCatalogItems: number
     chunkSize: number
   }

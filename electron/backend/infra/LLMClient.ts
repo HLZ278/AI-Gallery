@@ -84,7 +84,7 @@ export class LLMClient {
     return buffersToFramePayloads(padded)
   }
 
-  async analyzeImage(imageBase64: string, mimeType: string): Promise<ImageAnalysisPayload> {
+  async analyzeImage(imageBase64: string, mimeType: string): Promise<AnalyzeFileResult> {
     const config = configService.load()
     const prompt = promptBuilder.loadImagePrompt()
     const client = this.getClient()
@@ -106,14 +106,14 @@ export class LLMClient {
 
     const content = response.choices[0]?.message?.content ?? ''
     const raw = extractJson(typeof content === 'string' ? content : JSON.stringify(content))
-    return mapPayload(raw)
+    return { payload: mapPayload(raw), promptVersion: prompt.version }
   }
 
   /** 使用百炼 OpenAI 兼容 video 帧序列 API（图像列表形式） */
   async analyzeFrameSequence(
     frames: Array<{ base64: string; mimeType: string }>,
     kind: SequenceKind
-  ): Promise<ImageAnalysisPayload> {
+  ): Promise<AnalyzeFileResult> {
     const config = configService.load()
     const prompt = kind === 'gif' ? promptBuilder.loadGifPrompt() : promptBuilder.loadVideoPrompt()
     const client = this.getClient()
@@ -140,7 +140,7 @@ export class LLMClient {
 
     const content = response.choices[0]?.message?.content ?? ''
     const raw = extractJson(typeof content === 'string' ? content : JSON.stringify(content))
-    return mapPayload(raw)
+    return { payload: mapPayload(raw), promptVersion: prompt.version }
   }
 }
 
@@ -153,23 +153,18 @@ export class ImageAnalyzer {
   constructor(private readonly llm: LLMClient = new LLMClient()) {}
 
   async analyzeFile(filePath: string): Promise<AnalyzeFileResult> {
-    const config = configService.load()
-
     if (isVideoFile(filePath)) {
       const frames = await this.llm.prepareVideoFrames(filePath)
-      const payload = await this.llm.analyzeFrameSequence(frames, 'video')
-      return { payload, promptVersion: config.analysis.videoPromptVersion }
+      return this.llm.analyzeFrameSequence(frames, 'video')
     }
 
     if (isGifFile(filePath)) {
       const frames = await this.llm.prepareGifFrames(filePath)
-      const payload = await this.llm.analyzeFrameSequence(frames, 'gif')
-      return { payload, promptVersion: config.analysis.gifPromptVersion }
+      return this.llm.analyzeFrameSequence(frames, 'gif')
     }
 
     const { base64, mimeType } = await this.llm.prepareImage(filePath)
-    const payload = await this.llm.analyzeImage(base64, mimeType)
-    return { payload, promptVersion: config.analysis.promptVersion }
+    return this.llm.analyzeImage(base64, mimeType)
   }
 }
 
