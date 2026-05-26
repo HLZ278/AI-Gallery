@@ -71,6 +71,7 @@ app.whenReady().then(() => {
   }
   registerIpcHandlers()
   lanServerService.applyConfig().catch((err) => console.error('LAN server start failed:', err))
+  libraryWatcherService.start().catch((err) => console.error('Library watcher start failed:', err))
   ipcMain.on('window:minimize', () => mainWindow?.minimize())
   ipcMain.on('window:maximize', () => {
     if (mainWindow?.isMaximized()) mainWindow.unmaximize()
@@ -84,6 +85,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  void libraryWatcherService.stop()
   lanServerService.stop()
   closeDb()
   if (process.platform !== 'darwin') app.quit()

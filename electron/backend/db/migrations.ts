@@ -105,4 +105,8 @@ export function runMigrations(db: Database.Database): void {
     reindexFtsFromAnalysis(db)
     markMigrationApplied(db, 'entity_fts_v1')
   }
+
+  if (!hasColumn(db, 'media_items', 'analysis_error')) {
+    db.prepare('ALTER TABLE media_items ADD COLUMN analysis_error TEXT').run()
+  }
 }

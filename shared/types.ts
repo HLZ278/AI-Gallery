@@ -113,6 +113,7 @@ export interface MediaItem {
   mediaType: MediaType
   thumbPath: string | null
   analysisStatus: AnalysisStatus
+  analysisError?: string | null
   libraryName?: string
   durationMs?: number | null
   frameCount?: number | null
@@ -302,6 +303,7 @@ export interface IpcApi {
     get: () => Promise<AppConfig>
     save: (config: AppConfig) => Promise<void>
     getDefaults: () => Promise<AppConfig>
+    testLlm: () => Promise<{ ok: boolean; message: string }>
   }
   library: {
     list: () => Promise<Library[]>
@@ -336,6 +338,7 @@ export interface IpcApi {
     start: () => Promise<void>
     stop: () => Promise<void>
     pause: () => Promise<void>
+    retryAllFailed: () => Promise<number>
     getProgress: () => Promise<AnalysisProgress>
     onProgress: (callback: (progress: AnalysisProgress) => void) => () => void
   }

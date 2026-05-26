@@ -9,13 +9,17 @@ import { MultiImagePreviewModal } from '../components/MultiImagePreviewModal'
 import { MultiPreviewLauncher } from '../components/MultiPreviewLauncher'
 import { MediaContextMenu, type MediaContextAction } from '../components/MediaContextMenu'
 import { LanShareModal } from '../components/LanShareModal'
+import { ShortcutHelpModal } from '../components/ShortcutHelpModal'
 import { sliceImagesFrom, isMultiPreviewable } from '../components/preview/multiLayout'
 import { useMediaSelection } from '../hooks/useMediaSelection'
 import { useMediaGridShortcuts } from '../hooks/useMediaGridShortcuts'
+import { useNavigateToImageEdit } from '../hooks/useNavigateToImageEdit'
 import { useAppStore } from '../store/appStore'
+import { toast } from '../store/toastStore'
 import { sortMediaItems, type MediaSortField, type MediaSortOrder } from '../utils/mediaSort'
 
 type ViewMode = 'grid' | 'timeline'
+const PAGE_SIZE = 120
 
 const mediaTypeOptions: { value: MediaType; label: string }[] = [
   { value: 'photo', label: '照片' },
@@ -28,15 +32,21 @@ const mediaTypeOptions: { value: MediaType; label: string }[] = [
 
 export function SearchPage() {
   const libraries = useAppStore((s) => s.libraries)
+  const config = useAppStore((s) => s.config)
   const analysisProgress = useAppStore((s) => s.analysisProgress)
   const prevProcessingIdsRef = useRef<Set<string>>(new Set())
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const filterAutoSearchRef = useRef(false)
+
   const [keyword, setKeyword] = useState('')
   const [searchMode, setSearchMode] = useState<SearchMode>('keyword')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [selectedTypes, setSelectedTypes] = useState<MediaType[]>([])
   const [libraryId, setLibraryId] = useState('')
+  const [page, setPage] = useState(1)
   const [result, setResult] = useState<SearchResult | null>(null)
+  const [hasSearched, setHasSearched] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [sortField, setSortField] = useState<MediaSortField>('takenAt')
   const [sortOrder, setSortOrder] = useState<MediaSortOrder>('desc')
@@ -49,7 +59,13 @@ export function SearchPage() {
   const [contextMenu, setContextMenu] = useState<{ item: MediaItem; x: number; y: number } | null>(null)
   const [lanShareItem, setLanShareItem] = useState<MediaItem | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+
+  const navigateToImageEdit = useNavigateToImageEdit()
+  const embeddingEnabled = config?.embedding.enabled ?? false
+  const columnMinWidth = config?.ui.gridColumnMinWidth ?? 160
 
   const preserveRankOrder = result?.searchMode === 'vector' || result?.searchMode === 'llm'
   const gridItems = useMemo(() => {
@@ -69,23 +85,77 @@ export function SearchPage() {
     getSelectedItems
   } = useMediaSelection(gridItems)
 
-  const buildQuery = useCallback(() => ({
-    keyword: keyword || undefined,
-    mode: searchMode,
-    dateFrom: dateFrom ? new Date(dateFrom).getTime() : undefined,
-    dateTo: dateTo ? new Date(dateTo + 'T23:59:59').getTime() : undefined,
-    mediaTypes: selectedTypes.length ? selectedTypes : undefined,
-    libraryIds: libraryId ? [libraryId] : undefined,
-    page: 1,
-    pageSize: 120
-  }), [keyword, searchMode, dateFrom, dateTo, selectedTypes, libraryId])
+  const buildQuery = useCallback(
+    (pageNum: number) => ({
+      keyword: keyword || undefined,
+      mode: searchMode,
+      dateFrom: dateFrom ? new Date(dateFrom).getTime() : undefined,
+      dateTo: dateTo ? new Date(dateTo + 'T23:59:59').getTime() : undefined,
+      mediaTypes: selectedTypes.length ? selectedTypes : undefined,
+      libraryIds: libraryId ? [libraryId] : undefined,
+      page: pageNum,
+      pageSize: PAGE_SIZE
+    }),
+    [keyword, searchMode, dateFrom, dateTo, selectedTypes, libraryId]
+  )
 
-  const refreshResults = useCallback(async () => {
-    setSearchError(null)
-    const res = await window.api.search.query(buildQuery())
-    setResult(res)
-    return res
-  }, [buildQuery])
+  const runQuery = useCallback(
+    async (pageNum: number, append: boolean) => {
+      setSearchError(null)
+      const res = await window.api.search.query(buildQuery(pageNum))
+      setResult((prev) => {
+        if (!append || !prev || pageNum === 1) return res
+        const seen = new Set(prev.items.map((item) => item.id))
+        const mergedItems = [...prev.items]
+        for (const item of res.items) {
+          if (!seen.has(item.id)) mergedItems.push(item)
+        }
+        return {
+          ...res,
+          items: mergedItems,
+          analysisMap: { ...prev.analysisMap, ...res.analysisMap },
+          vectorScoreMap: { ...prev.vectorScoreMap, ...res.vectorScoreMap }
+        }
+      })
+      setPage(pageNum)
+      return res
+    },
+    [buildQuery]
+  )
+
+  const doSearch = useCallback(async () => {
+    if ((searchMode === 'llm' || searchMode === 'vector') && !keyword.trim()) return
+    if (searchMode === 'vector' && !embeddingEnabled) {
+      toast('请先在设置中启用向量索引', 'error')
+      return
+    }
+    setLoading(true)
+    setHasSearched(true)
+    try {
+      await runQuery(1, false)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setSearchError(message)
+      setResult(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [runQuery, searchMode, keyword, embeddingEnabled])
+
+  const loadMore = useCallback(async () => {
+    if (!result || loadingMore || loading) return
+    if (result.items.length >= result.total) return
+    setLoadingMore(true)
+    try {
+      await runQuery(page + 1, true)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [result, loadingMore, loading, page, runQuery])
+
+  const refreshResults = useCallback(async () => runQuery(page, false), [runQuery, page])
 
   const patchMediaStatus = useCallback((mediaId: string, status: AnalysisStatus) => {
     setResult((prev) => {
@@ -98,7 +168,6 @@ export function SearchPage() {
 
   useEffect(() => {
     if (!analysisProgress) return
-
     const processingIds = new Set(analysisProgress.currentFiles.map((file) => file.mediaId))
     setResult((prev) => {
       if (!prev) return prev
@@ -112,31 +181,52 @@ export function SearchPage() {
       })
       return changed ? { ...prev, items } : prev
     })
-
     const finishedIds = [...prevProcessingIdsRef.current].filter((id) => !processingIds.has(id))
     prevProcessingIdsRef.current = processingIds
-    if (finishedIds.length > 0) {
-      void refreshResults()
-    }
+    if (finishedIds.length > 0) void refreshResults()
   }, [analysisProgress, refreshResults])
 
-  const doSearch = useCallback(async () => {
+  useEffect(() => {
     setLoading(true)
-    setSearchError(null)
-    try {
-      await refreshResults()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setSearchError(message)
-      setResult(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [refreshResults])
+    window.api.search
+      .query({ page: 1, pageSize: PAGE_SIZE })
+      .then(setResult)
+      .catch((err) => {
+        setSearchError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => setLoading(false))
+  }, [])
 
   useEffect(() => {
-    window.api.search.query({ page: 1, pageSize: 120 }).then(setResult)
-  }, [])
+    if (!filterAutoSearchRef.current) {
+      filterAutoSearchRef.current = true
+      return
+    }
+    if (!hasSearched && !dateFrom && !dateTo && !libraryId && selectedTypes.length === 0) return
+    const timer = setTimeout(() => {
+      void doSearch()
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [dateFrom, dateTo, libraryId, selectedTypes, hasSearched, doSearch])
+
+  const resetFilters = () => {
+    setDateFrom('')
+    setDateTo('')
+    setLibraryId('')
+    setSelectedTypes([])
+  }
+
+  const searchByTag = (tag: string) => {
+    setKeyword(tag)
+    setSearchMode('keyword')
+    setHasSearched(true)
+    void window.api.search.query({
+      keyword: tag,
+      mode: 'keyword',
+      page: 1,
+      pageSize: PAGE_SIZE
+    }).then(setResult)
+  }
 
   const toggleType = (type: MediaType) => {
     setSelectedTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
@@ -149,8 +239,7 @@ export function SearchPage() {
       if (multiPreview?.mode === 'window' && multiPreview.startItemId === mediaId) setMultiPreview(null)
       if (multiPreview?.mode === 'selected' && multiPreview.items.some((i) => i.id === mediaId)) setMultiPreview(null)
       setContextMenu(null)
-      const res = await refreshResults()
-      return res
+      return refreshResults()
     },
     [selected, previewState, multiPreview, refreshResults, clearSelection]
   )
@@ -170,7 +259,7 @@ export function SearchPage() {
   )
 
   useMediaGridShortcuts({
-    enabled: !previewState && !multiPreview && !contextMenu && !lanShareItem,
+    enabled: !previewState && !multiPreview && !contextMenu && !lanShareItem && !showShortcuts,
     getSelectedItems,
     primaryItem: selected,
     selectAll,
@@ -179,6 +268,21 @@ export function SearchPage() {
     onPreview: openPreview,
     onCloseDetail: () => clearSelection()
   })
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (previewState || multiPreview || contextMenu || lanShareItem || showShortcuts) return
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+        setShowShortcuts(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [previewState, multiPreview, contextMenu, lanShareItem, showShortcuts])
 
   useEffect(() => {
     if (!focusId) return
@@ -192,10 +296,7 @@ export function SearchPage() {
 
     switch (action) {
       case 'copy': {
-        const targets =
-          selectedIds.has(item.id) && selectedIds.size > 1
-            ? getSelectedItems()
-            : [item]
+        const targets = selectedIds.has(item.id) && selectedIds.size > 1 ? getSelectedItems() : [item]
         await copyMediaItems(targets)
         break
       }
@@ -205,6 +306,11 @@ export function SearchPage() {
       case 'lanShare':
         setLanShareItem(item)
         break
+      case 'sendToEdit': {
+        const targets = selectedIds.has(item.id) && selectedIds.size > 1 ? getSelectedItems() : [item]
+        await navigateToImageEdit(targets)
+        break
+      }
       case 'showInFolder':
         await window.api.media.showInFolder(item.filePath)
         break
@@ -237,19 +343,27 @@ export function SearchPage() {
   }
 
   const selectedItems = getSelectedItems()
-
   const analysis = selected ? result?.analysisMap[selected.id] ?? null : null
+  const hasMore = result != null && result.items.length < result.total
+
+  const emptyMessage =
+    libraries.length === 0
+      ? '暂无图库，请先在「图库」页添加目录'
+      : hasSearched && keyword.trim()
+        ? '未找到匹配结果，可尝试更换关键词、搜索模式或筛选条件'
+        : hasSearched
+          ? '当前筛选条件下没有图片'
+          : '暂无图片，请先添加图库或导入图片'
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="p-4 glass border-b border-[var(--color-border)] space-y-3">
-        <div className="flex gap-2 mb-1">
+        <div className="flex gap-2 mb-1 flex-wrap">
           <button
             type="button"
             onClick={() => setSearchMode('keyword')}
             className={`px-3 py-1 rounded-full text-xs border transition-colors ${
-              searchMode === 'keyword'
-                ? 'bg-[var(--color-accent)] text-white border-transparent'
-                : 'border-[var(--color-border)]'
+              searchMode === 'keyword' ? 'bg-[var(--color-accent)] text-white border-transparent' : 'border-[var(--color-border)]'
             }`}
           >
             关键词搜索
@@ -258,68 +372,71 @@ export function SearchPage() {
             type="button"
             onClick={() => setSearchMode('llm')}
             className={`px-3 py-1 rounded-full text-xs border transition-colors ${
-              searchMode === 'llm'
-                ? 'bg-[var(--color-accent)] text-white border-transparent'
-                : 'border-[var(--color-border)]'
+              searchMode === 'llm' ? 'bg-[var(--color-accent)] text-white border-transparent' : 'border-[var(--color-border)]'
             }`}
           >
             AI 智能搜索
           </button>
           <button
             type="button"
-            onClick={() => setSearchMode('vector')}
-            className={`px-3 py-1 rounded-full text-xs border transition-colors ${
-              searchMode === 'vector'
-                ? 'bg-[var(--color-accent)] text-white border-transparent'
-                : 'border-[var(--color-border)]'
+            onClick={() => embeddingEnabled && setSearchMode('vector')}
+            disabled={!embeddingEnabled}
+            title={embeddingEnabled ? undefined : '请先在设置中启用向量索引'}
+            className={`px-3 py-1 rounded-full text-xs border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+              searchMode === 'vector' ? 'bg-[var(--color-accent)] text-white border-transparent' : 'border-[var(--color-border)]'
             }`}
           >
             向量语义
           </button>
+          <button
+            type="button"
+            onClick={() => setShowShortcuts(true)}
+            className="ml-auto px-3 py-1 rounded-full text-xs border border-[var(--color-border)] hover:bg-black/5"
+          >
+            快捷键 ?
+          </button>
         </div>
         <div className="flex gap-2">
           <input
+            ref={searchInputRef}
             type="search"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && doSearch()}
+            onKeyDown={(e) => e.key === 'Enter' && void doSearch()}
             placeholder={
               searchMode === 'llm'
                 ? '用自然语言描述，AI 将从图库详情中语义匹配...'
                 : searchMode === 'vector'
                   ? '模糊描述即可，如：校服少女、湖边情侣、梗图...'
-                  : '精确关键词，如：铁链、JK、羽毛球赛...'
+                  : '精确关键词，如：铁链、JK、羽毛球赛、蔡徐坤...'
             }
             className="flex-1 px-4 py-2.5 rounded-apple bg-[var(--color-card)] border border-[var(--color-border)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 text-sm"
           />
           <button
             type="button"
-            onClick={doSearch}
+            onClick={() => void doSearch()}
             disabled={loading || ((searchMode === 'llm' || searchMode === 'vector') && !keyword.trim())}
             className="px-5 py-2.5 rounded-apple-sm bg-[var(--color-accent)] text-white text-sm font-medium hover:brightness-110 disabled:opacity-50"
           >
-            {loading
-              ? searchMode === 'llm'
-                ? 'AI 匹配中...'
-                : searchMode === 'vector'
-                  ? '向量检索中...'
-                  : '搜索中...'
-              : '搜索'}
+            {loading ? (searchMode === 'llm' ? 'AI 匹配中...' : searchMode === 'vector' ? '向量检索中...' : '搜索中...') : '搜索'}
           </button>
         </div>
+        {searchMode === 'vector' && !embeddingEnabled && (
+          <p className="text-[10px] text-orange-500">向量索引已关闭，请在设置中启用并建立索引</p>
+        )}
         {searchMode === 'llm' && (
           <p className="text-[10px] text-[var(--color-muted)]">
-            AI 搜索仅传入图库中已分析图片的文字详情，不传图片本身，由大模型进行语义匹配，慎用，消耗Token较多
+            AI 搜索仅传入图库中已分析图片的文字详情，不传图片本身，由大模型进行语义匹配，慎用，消耗 Token 较多
           </p>
         )}
-        {searchMode === 'vector' && (
+        {searchMode === 'vector' && embeddingEnabled && (
           <p className="text-[10px] text-[var(--color-muted)]">
             向量语义搜索：将查询与图片详情转为向量，按相似度匹配，无需精确关键词（需先在设置中建立向量索引）
           </p>
         )}
         {searchMode === 'keyword' && (
           <p className="text-[10px] text-[var(--color-muted)]">
-            关键词会匹配：描述、场景、故事、位置、人物、物体、标签、氛围、颜色、图中文字、文件名（图片须已完成 AI 分析）
+            关键词会匹配：描述、场景、故事、位置、人物、物体、标签、IP、氛围、颜色、图中文字、GPS、文件名
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -328,9 +445,7 @@ export function SearchPage() {
               type="button"
               onClick={() => setViewMode('grid')}
               className={`px-3 py-1.5 rounded-apple-sm text-xs border transition-colors ${
-                viewMode === 'grid'
-                  ? 'bg-[var(--color-accent)] text-white border-transparent'
-                  : 'border-[var(--color-border)] hover:bg-black/5'
+                viewMode === 'grid' ? 'bg-[var(--color-accent)] text-white border-transparent' : 'border-[var(--color-border)] hover:bg-black/5'
               }`}
             >
               网格
@@ -339,9 +454,7 @@ export function SearchPage() {
               type="button"
               onClick={() => setViewMode('timeline')}
               className={`px-3 py-1.5 rounded-apple-sm text-xs border transition-colors ${
-                viewMode === 'timeline'
-                  ? 'bg-[var(--color-accent)] text-white border-transparent'
-                  : 'border-[var(--color-border)] hover:bg-black/5'
+                viewMode === 'timeline' ? 'bg-[var(--color-accent)] text-white border-transparent' : 'border-[var(--color-border)] hover:bg-black/5'
               }`}
             >
               时间轴
@@ -365,24 +478,10 @@ export function SearchPage() {
             <option value="desc">新 → 旧</option>
             <option value="asc">旧 → 新</option>
           </select>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="px-3 py-1.5 rounded-apple-sm bg-[var(--color-card)] border border-[var(--color-border)] text-xs"
-          />
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="px-3 py-1.5 rounded-apple-sm bg-[var(--color-card)] border border-[var(--color-border)] text-xs" />
           <span className="text-[var(--color-muted)]">至</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="px-3 py-1.5 rounded-apple-sm bg-[var(--color-card)] border border-[var(--color-border)] text-xs"
-          />
-          <select
-            value={libraryId}
-            onChange={(e) => setLibraryId(e.target.value)}
-            className="px-3 py-1.5 rounded-apple-sm bg-[var(--color-card)] border border-[var(--color-border)] text-xs"
-          >
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="px-3 py-1.5 rounded-apple-sm bg-[var(--color-card)] border border-[var(--color-border)] text-xs" />
+          <select value={libraryId} onChange={(e) => setLibraryId(e.target.value)} className="px-3 py-1.5 rounded-apple-sm bg-[var(--color-card)] border border-[var(--color-border)] text-xs">
             <option value="">全部图库</option>
             {libraries.map((lib) => (
               <option key={lib.id} value={lib.id}>{lib.name}</option>
@@ -394,35 +493,30 @@ export function SearchPage() {
               type="button"
               onClick={() => toggleType(opt.value)}
               className={`px-3 py-1 rounded-full text-xs border transition-colors ${
-                selectedTypes.includes(opt.value)
-                  ? 'bg-[var(--color-accent)] text-white border-transparent'
-                  : 'border-[var(--color-border)] hover:bg-black/5'
+                selectedTypes.includes(opt.value) ? 'bg-[var(--color-accent)] text-white border-transparent' : 'border-[var(--color-border)] hover:bg-black/5'
               }`}
             >
               {opt.label}
             </button>
           ))}
+          <button type="button" onClick={resetFilters} className="px-3 py-1 rounded-full text-xs border border-[var(--color-border)] hover:bg-black/5">
+            重置筛选
+          </button>
         </div>
-        {searchError && (
-          <p className="text-xs text-red-500">{searchError}</p>
-        )}
+        {searchError && <p className="text-xs text-red-500">{searchError}</p>}
         {result && (
           <div className="text-xs text-[var(--color-muted)] space-y-1">
             <p>
-              共 {result.total} 个结果
+              共 {result.total} 个结果{result.items.length < result.total ? `，已加载 ${result.items.length} 个` : ''}
               {result.searchMode === 'llm' && ' · AI 智能搜索'}
               {result.searchMode === 'vector' && ' · 向量语义搜索（按相似度排序）'}
             </p>
             {result.llmReason && (
-              <p className={result.total === 0 ? 'text-orange-500' : 'text-[var(--color-accent)]'}>
-                {result.llmReason}
-              </p>
+              <p className={result.total === 0 ? 'text-orange-500' : 'text-[var(--color-accent)]'}>{result.llmReason}</p>
             )}
           </div>
         )}
-        {preserveRankOrder && (
-          <p className="text-[10px] text-[var(--color-muted)]">向量/AI 搜索结果按相关度排序，时间排序已禁用</p>
-        )}
+        {preserveRankOrder && <p className="text-[10px] text-[var(--color-muted)]">向量/AI 搜索结果按相关度排序，时间排序已禁用</p>}
       </div>
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
@@ -439,9 +533,7 @@ export function SearchPage() {
               sortField={sortField}
               selectedIds={selectedIds}
               focusId={focusId}
-              onSelect={(item, e) =>
-                selectItem(item, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey })
-              }
+              onSelect={(item, e) => selectItem(item, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey })}
               onDoubleClick={openPreview}
               onContextMenu={(item, e) => setContextMenu({ item, x: e.clientX, y: e.clientY })}
               scoreMap={result?.vectorScoreMap}
@@ -449,22 +541,37 @@ export function SearchPage() {
           ) : (
             <MediaGrid
               items={gridItems}
+              columnMinWidth={columnMinWidth}
+              emptyMessage={emptyMessage}
               selectedIds={selectedIds}
               focusId={focusId}
-              onSelect={(item, e) =>
-                selectItem(item, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey })
-              }
+              onSelect={(item, e) => selectItem(item, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey })}
               onDoubleClick={openPreview}
               onContextMenu={(item, e) => setContextMenu({ item, x: e.clientX, y: e.clientY })}
               scoreMap={result?.vectorScoreMap}
             />
+          )}
+          {hasMore && (
+            <div className="shrink-0 flex justify-center py-3 border-t border-[var(--color-border)]">
+              <button
+                type="button"
+                onClick={() => void loadMore()}
+                disabled={loadingMore}
+                className="px-5 py-2 rounded-apple-sm border border-[var(--color-border)] text-sm hover:bg-black/5 disabled:opacity-50"
+              >
+                {loadingMore ? '加载中...' : `加载更多（${result!.items.length}/${result!.total}）`}
+              </button>
+            </div>
           )}
         </div>
         {selected && (
           <DetailPanel
             item={selected}
             analysis={analysis}
+            vectorScore={result?.vectorScoreMap?.[selected.id]}
             onClose={() => clearSelection()}
+            onSearchTag={searchByTag}
+            onSendToEdit={() => void navigateToImageEdit([selected])}
             onRetry={async () => {
               const mediaId = selected.id
               patchMediaStatus(mediaId, 'pending')
@@ -476,38 +583,19 @@ export function SearchPage() {
       </div>
 
       {previewState && (
-        <MediaPreviewModal
-          items={previewState.items}
-          initialIndex={previewState.index}
-          onClose={() => setPreviewState(null)}
-        />
+        <MediaPreviewModal items={previewState.items} initialIndex={previewState.index} onClose={() => setPreviewState(null)} />
       )}
       {multiPreview?.mode === 'window' && (
-        <MultiImagePreviewModal
-          mode="window"
-          sourceItems={multiPreview.sourceItems}
-          startItemId={multiPreview.startItemId}
-          windowSize={multiPreview.windowSize}
-          onClose={() => setMultiPreview(null)}
-        />
+        <MultiImagePreviewModal mode="window" sourceItems={multiPreview.sourceItems} startItemId={multiPreview.startItemId} windowSize={multiPreview.windowSize} onClose={() => setMultiPreview(null)} />
       )}
       {multiPreview?.mode === 'selected' && (
-        <MultiImagePreviewModal
-          mode="selected"
-          items={multiPreview.items}
-          onClose={() => setMultiPreview(null)}
-        />
+        <MultiImagePreviewModal mode="selected" items={multiPreview.items} onClose={() => setMultiPreview(null)} />
       )}
       {contextMenu && (
-        <MediaContextMenu
-          item={contextMenu.item}
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onAction={handleContextAction}
-          onClose={() => setContextMenu(null)}
-        />
+        <MediaContextMenu item={contextMenu.item} x={contextMenu.x} y={contextMenu.y} onAction={handleContextAction} onClose={() => setContextMenu(null)} />
       )}
       {lanShareItem && <LanShareModal item={lanShareItem} onClose={() => setLanShareItem(null)} />}
+      <ShortcutHelpModal open={showShortcuts} onClose={() => setShowShortcuts(false)} />
     </div>
   )
 }

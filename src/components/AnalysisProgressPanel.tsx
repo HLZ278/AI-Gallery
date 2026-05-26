@@ -15,6 +15,10 @@ export function AnalysisProgressPanel({ progress, compact = false }: Props) {
 
   const handleStop = () => window.api.analysis.stop()
   const handleResume = () => window.api.analysis.start()
+  const handleRetryFailed = async () => {
+    const count = await window.api.analysis.retryAllFailed()
+    if (count > 0) await window.api.analysis.start()
+  }
 
   return (
     <div className={`rounded-apple-sm bg-[var(--color-card)] border border-[var(--color-border)] ${compact ? 'p-3 text-xs' : 'p-4 text-sm'}`}>
@@ -56,6 +60,15 @@ export function AnalysisProgressPanel({ progress, compact = false }: Props) {
         <span>{completed} / {total}</span>
         <span>已完成 {done} · 失败 {failed}</span>
       </div>
+      {failed > 0 && (
+        <button
+          type="button"
+          onClick={() => void handleRetryFailed()}
+          className="mb-2 w-full px-2 py-1 rounded text-[10px] border border-orange-400 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+        >
+          重试全部失败项 ({failed})
+        </button>
+      )}
 
       {!compact && (
         <div className="flex gap-3 text-xs text-[var(--color-muted)] mb-2">

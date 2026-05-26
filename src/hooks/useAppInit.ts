@@ -7,15 +7,32 @@ export function useAppInit(): void {
   const setAnalysisProgress = useAppStore((s) => s.setAnalysisProgress)
   const setImportProgress = useAppStore((s) => s.setImportProgress)
   const setTheme = useAppStore((s) => s.setTheme)
+  const setInitError = useAppStore((s) => s.setInitError)
 
   useEffect(() => {
-    window.api.config.get().then((config) => {
-      setConfig(config)
-      if (config.ui.theme === 'dark') setTheme('dark')
-      else if (config.ui.theme === 'light') setTheme('light')
-    })
-    window.api.library.list().then(setLibraries)
-    window.api.analysis.getProgress().then(setAnalysisProgress)
+    void (async () => {
+      try {
+        const config = await window.api.config.get()
+        setConfig(config)
+        if (config.ui.theme === 'dark') setTheme('dark')
+        else if (config.ui.theme === 'light') setTheme('light')
+        setInitError(null)
+      } catch (err) {
+        setInitError(err instanceof Error ? err.message : String(err))
+      }
+
+      try {
+        setLibraries(await window.api.library.list())
+      } catch (err) {
+        setInitError(err instanceof Error ? err.message : String(err))
+      }
+
+      try {
+        setAnalysisProgress(await window.api.analysis.getProgress())
+      } catch {
+        /* optional */
+      }
+    })()
 
     const unsubAnalysis = window.api.analysis.onProgress(setAnalysisProgress)
     const unsubImport = window.api.import.onProgress(setImportProgress)
@@ -24,5 +41,5 @@ export function useAppInit(): void {
       unsubAnalysis()
       unsubImport()
     }
-  }, [setConfig, setLibraries, setAnalysisProgress, setImportProgress, setTheme])
+  }, [setConfig, setLibraries, setAnalysisProgress, setImportProgress, setTheme, setInitError])
 }

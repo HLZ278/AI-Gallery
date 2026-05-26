@@ -12,6 +12,8 @@ export function SettingsPage() {
   const [embedBusy, setEmbedBusy] = useState(false)
   const [embedMsg, setEmbedMsg] = useState('')
   const [lanMsg, setLanMsg] = useState('')
+  const [llmTestMsg, setLlmTestMsg] = useState('')
+  const [llmTesting, setLlmTesting] = useState(false)
 
   useEffect(() => {
     if (config) setForm(JSON.parse(JSON.stringify(config)))
@@ -94,8 +96,23 @@ export function SettingsPage() {
     setConfig(form)
     if (form.ui.theme === 'dark') setTheme('dark')
     else if (form.ui.theme === 'light') setTheme('light')
+    await refreshEmbedStats()
+    setLanMsg('设置已保存，局域网服务已自动重启')
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleTestLlm = async () => {
+    setLlmTesting(true)
+    setLlmTestMsg('')
+    try {
+      const res = await window.api.config.testLlm()
+      setLlmTestMsg(res.message)
+    } catch (err) {
+      setLlmTestMsg(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLlmTesting(false)
+    }
   }
 
   const handleReset = async () => {
@@ -161,10 +178,47 @@ export function SettingsPage() {
             />
           </Field>
         </div>
+        <button
+          type="button"
+          onClick={() => void handleTestLlm()}
+          disabled={llmTesting}
+          className="px-4 py-2 rounded-apple-sm border border-[var(--color-accent)] text-[var(--color-accent)] text-sm disabled:opacity-50"
+        >
+          {llmTesting ? '测试中...' : '测试 API 连接'}
+        </button>
+        {llmTestMsg && <p className="text-xs text-[var(--color-accent)]">{llmTestMsg}</p>}
+        <p className="text-[10px] text-[var(--color-muted)]">视觉分析建议使用 qwen-vl-max 等支持看图的模型</p>
       </section>
 
       <section className="mb-6 p-5 rounded-apple bg-[var(--color-card)] border border-[var(--color-border)] space-y-4">
         <h2 className="font-semibold">分析</h2>
+        <div className="grid grid-cols-3 gap-4">
+          <Field label="图片提示词版本">
+            <input
+              type="text"
+              value={form.analysis.promptVersion}
+              onChange={(e) => updateAnalysis('promptVersion', e.target.value)}
+              className="field-input"
+            />
+          </Field>
+          <Field label="视频提示词版本">
+            <input
+              type="text"
+              value={form.analysis.videoPromptVersion}
+              onChange={(e) => updateAnalysis('videoPromptVersion', e.target.value)}
+              className="field-input"
+            />
+          </Field>
+          <Field label="GIF 提示词版本">
+            <input
+              type="text"
+              value={form.analysis.gifPromptVersion}
+              onChange={(e) => updateAnalysis('gifPromptVersion', e.target.value)}
+              className="field-input"
+            />
+          </Field>
+        </div>
+        <p className="text-[10px] text-[var(--color-muted)]">升级提示词后请重新分析；v1.1 强化人物/IP/地点识别</p>
         <div className="grid grid-cols-2 gap-4">
           <Field label="图片最大边长 (px)">
             <input
@@ -360,6 +414,7 @@ export function SettingsPage() {
           重新生成访问令牌
         </button>
         {lanMsg && <p className="text-xs text-[var(--color-accent)]">{lanMsg}</p>}
+        <p className="text-[10px] text-[var(--color-muted)]">修改端口或开关后请点击底部「保存设置」以重启局域网服务。</p>
         <p className="text-[10px] text-[var(--color-muted)]">
           Windows 防火墙可能拦截首次访问，请在弹窗中允许专用网络。仅建议在可信局域网内使用。
         </p>
@@ -515,6 +570,16 @@ export function SettingsPage() {
             <option value="light">浅色</option>
             <option value="dark">深色</option>
           </select>
+        </Field>
+        <Field label="网格列最小宽度 (px)">
+          <input
+            type="number"
+            min={120}
+            max={320}
+            value={form.ui.gridColumnMinWidth}
+            onChange={(e) => updateUi('gridColumnMinWidth', Number(e.target.value))}
+            className="field-input"
+          />
         </Field>
       </section>
 

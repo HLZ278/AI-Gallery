@@ -5,7 +5,8 @@ const api = {
   config: {
     get: (): Promise<AppConfig> => ipcRenderer.invoke('config:get'),
     save: (config: AppConfig): Promise<void> => ipcRenderer.invoke('config:save', config),
-    getDefaults: (): Promise<AppConfig> => ipcRenderer.invoke('config:getDefaults')
+    getDefaults: (): Promise<AppConfig> => ipcRenderer.invoke('config:getDefaults'),
+    testLlm: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('config:testLlm')
   },
   library: {
     list: () => ipcRenderer.invoke('library:list'),
@@ -47,6 +48,7 @@ const api = {
     stop: () => ipcRenderer.invoke('analysis:stop'),
     pause: () => ipcRenderer.invoke('analysis:pause'),
     getProgress: () => ipcRenderer.invoke('analysis:getProgress'),
+    retryAllFailed: () => ipcRenderer.invoke('analysis:retryAllFailed'),
     onProgress: (callback: (progress: unknown) => void) => {
       const handler = (_: unknown, progress: unknown) => callback(progress)
       ipcRenderer.on('analysis:progress', handler)

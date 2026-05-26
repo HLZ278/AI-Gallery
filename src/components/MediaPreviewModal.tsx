@@ -72,6 +72,10 @@ export function MediaPreviewModal({ items, initialIndex = 0, onClose }: Props) {
         case '0':
           if (!isVideo) zoom.resetZoom()
           break
+        case 'r':
+        case 'R':
+          if (!isVideo) setRotation((r) => r + (e.shiftKey ? -90 : 90))
+          break
         case 'c':
         case 'C':
           if (e.ctrlKey || e.metaKey) {

@@ -5,7 +5,8 @@ import { MediaGridItem } from '../components/MediaGrid'
 import { ImageEditResultCard, type ImageEditDecision } from '../components/imageEdit/ImageEditResultCard'
 import { useAppStore } from '../store/appStore'
 import { buildImageEditSession, useImageEditStore } from '../store/imageEditStore'
-import { mediaTypeLabel } from '../utils/formatMedia'
+import { formatFileSize, mediaTypeLabel } from '../utils/formatMedia'
+import { toast } from '../store/toastStore'
 
 function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -25,8 +26,11 @@ export function ImageEditPage() {
   const setMessages = useImageEditStore((s) => s.setMessages)
   const hydrateFromSession = useImageEditStore((s) => s.hydrateFromSession)
   const setHydrated = useImageEditStore((s) => s.setHydrated)
+  const resetToWelcome = useImageEditStore((s) => s.resetToWelcome)
 
   const [libraryImages, setLibraryImages] = useState<MediaItem[]>([])
+  const [imagePage, setImagePage] = useState(1)
+  const [loadingMoreImages, setLoadingMoreImages] = useState(false)
   const [selectedTypes, setSelectedTypes] = useState<MediaType[]>([])
   const [input, setInput] = useState('')
   const [editing, setEditing] = useState(false)
@@ -42,6 +46,19 @@ export function ImageEditPage() {
     [config]
   )
   const formatHint = config ? formatImageEditExtensions(config) : 'JPG/PNG/WEBP'
+  const maxInputBytesLabel = imageEditConfig ? formatFileSize(imageEditConfig.maxInputBytes) : '10MB'
+  const IMAGE_PAGE_SIZE = 120
+
+  const loadLibraryImages = useCallback(
+    async (page: number, append: boolean) => {
+      if (!libraryId) return
+      const types = selectedTypes.length ? selectedTypes : undefined
+      const batch = await window.api.imageEdit.listLibraryImages(libraryId, page, IMAGE_PAGE_SIZE, types)
+      setLibraryImages((prev) => (append ? [...prev, ...batch.filter((item) => !prev.some((p) => p.id === item.id))] : batch))
+      setImagePage(page)
+    },
+    [libraryId, selectedTypes]
+  )
 
   useEffect(() => {
     if (hydrated) return
@@ -60,9 +77,8 @@ export function ImageEditPage() {
       setLibraryImages([])
       return
     }
-    const types = selectedTypes.length ? selectedTypes : undefined
-    void window.api.imageEdit.listLibraryImages(libraryId, 1, 120, types).then(setLibraryImages)
-  }, [libraryId, selectedTypes])
+    void loadLibraryImages(1, false)
+  }, [libraryId, selectedTypes, loadLibraryImages])
 
   useEffect(() => {
     if (supportedMediaTypes.length === 0) return
@@ -97,7 +113,7 @@ export function ImageEditPage() {
       setSourceMediaIds((prev) => {
         if (prev.includes(item.id)) return prev.filter((id) => id !== item.id)
         if (prev.length >= maxInputImages) {
-          alert(`最多选择 ${maxInputImages} 张图片`)
+          toast(`最多选择 ${maxInputImages} 张图片`, 'error')
           return prev
         }
         return [...prev, item.id]
@@ -125,7 +141,7 @@ export function ImageEditPage() {
     const prompt = input.trim()
     if (!prompt || editing) return
     if (sourceMediaIds.length === 0) {
-      alert('请先选择至少一张源图片')
+      toast('请先选择至少一张源图片', 'error')
       return
     }
 
@@ -227,7 +243,7 @@ export function ImageEditPage() {
         <div>
           <h1 className="text-lg font-semibold">AI 图片编辑</h1>
           <p className="text-xs text-[var(--color-muted)] mt-1">
-            {imageEditConfig?.model ?? 'qwen-image-2.0-pro'} · 支持 1~{maxInputImages} 张输入 · {formatHint} · 单张 ≤10MB
+            {imageEditConfig?.model ?? 'qwen-image-2.0-pro'} · 支持 1~{maxInputImages} 张输入 · {formatHint} · 单张 ≤{maxInputBytesLabel}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -262,6 +278,13 @@ export function ImageEditPage() {
           <span className="text-[10px] text-[var(--color-muted)]">
             已选 {sourceMediaIds.length}/{maxInputImages} 张
           </span>
+          <button
+            type="button"
+            onClick={() => resetToWelcome()}
+            className="px-2 py-1 rounded-apple-sm border border-[var(--color-border)] text-[10px]"
+          >
+            清空会话
+          </button>
         </div>
       </div>
 
@@ -299,6 +322,19 @@ export function ImageEditPage() {
                 />
               ))}
             </div>
+          )}
+          {libraryImages.length >= imagePage * IMAGE_PAGE_SIZE && (
+            <button
+              type="button"
+              disabled={loadingMoreImages}
+              onClick={() => {
+                setLoadingMoreImages(true)
+                void loadLibraryImages(imagePage + 1, true).finally(() => setLoadingMoreImages(false))
+              }}
+              className="w-full mt-2 px-2 py-1.5 rounded-apple-sm border border-[var(--color-border)] text-[10px] disabled:opacity-50"
+            >
+              {loadingMoreImages ? '加载中...' : '加载更多'}
+            </button>
           )}
         </aside>
 

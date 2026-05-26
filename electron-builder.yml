@@ -1,5 +1,5 @@
 appId: com.yourpicture.app
-productName: YourPicture
+productName: AI图库
 directories:
   output: release
 files:

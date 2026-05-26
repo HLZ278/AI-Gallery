@@ -19,6 +19,7 @@ export function ImageGenPage() {
   const setMessages = useImageGenStore((s) => s.setMessages)
   const hydrateFromSession = useImageGenStore((s) => s.hydrateFromSession)
   const setHydrated = useImageGenStore((s) => s.setHydrated)
+  const resetToWelcome = useImageGenStore((s) => s.resetToWelcome)
 
   const [input, setInput] = useState('')
   const [generating, setGenerating] = useState(false)
@@ -195,6 +196,13 @@ export function ImageGenPage() {
               {config?.imageGen.saveSubfolder ? ` / ${config.imageGen.saveSubfolder}` : ''}
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => resetToWelcome()}
+            className="px-2 py-1 rounded-apple-sm border border-[var(--color-border)] text-[10px]"
+          >
+            清空会话
+          </button>
         </div>
       </div>
 

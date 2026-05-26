@@ -9,6 +9,8 @@ import { analysisQueue } from '../backend/domain/AnalysisQueue'
 import { textToImageService } from '../backend/services/TextToImageService'
 import { imageEditService } from '../backend/services/ImageEditService'
 import { lanServerService } from '../backend/services/LanServerService'
+import { libraryWatcherService } from '../backend/services/LibraryWatcherService'
+import { testLlmConnection } from '../backend/services/ConfigTestService'
 import type { AppConfig, ImageEditRequest, ImageEditSession, ImageGenRequest, ImageGenSession, MediaType, SearchQuery } from '../../shared/types'
 
 export function registerIpcHandlers(): void {
@@ -19,10 +21,18 @@ export function registerIpcHandlers(): void {
     await lanServerService.applyConfig()
   })
   ipcMain.handle('config:getDefaults', () => configService.getDefaults())
+  ipcMain.handle('config:testLlm', () => testLlmConnection())
 
   ipcMain.handle('library:list', () => libraryService.list())
-  ipcMain.handle('library:add', (_e, rootPath: string, name?: string) => libraryService.add(rootPath, name))
-  ipcMain.handle('library:remove', (_e, id: string) => libraryService.remove(id))
+  ipcMain.handle('library:add', async (_e, rootPath: string, name?: string) => {
+    const library = libraryService.add(rootPath, name)
+    await libraryWatcherService.restart()
+    return library
+  })
+  ipcMain.handle('library:remove', async (_e, id: string) => {
+    libraryService.remove(id)
+    await libraryWatcherService.restart()
+  })
   ipcMain.handle('library:scan', async (e, id: string) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     return libraryService.scan(id, (progress) => {
@@ -81,6 +91,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('analysis:stop', () => analysisQueue.stop())
   ipcMain.handle('analysis:pause', () => analysisQueue.pause())
   ipcMain.handle('analysis:getProgress', () => analysisQueue.getProgress())
+  ipcMain.handle('analysis:retryAllFailed', async () => analysisQueue.retryAllFailed())
 
   ipcMain.handle('embedding:backfill', async () => embeddingService.backfillMissing())
   ipcMain.handle('embedding:rebuild', async () => embeddingService.rebuildAll())

@@ -5,7 +5,7 @@ const WELCOME: ImageEditStoredMessage = {
   id: 'welcome',
   role: 'assistant',
   content:
-    '从图库选择 1~3 张图片（JPG/PNG/WEBP/GIF 等，单张 ≤10MB），输入编辑指令。生成后可选择「入库」「覆盖原图」或「拒绝」。多图时按顺序传入，输出比例以最后一张为准。'
+    '从图库选择 1~3 张静态图片，输入编辑指令。生成后可选择「入库」「覆盖原图」或「拒绝」。多图时按顺序传入，输出比例以最后一张为准。'
 }
 
 interface ImageEditState {
@@ -22,6 +22,7 @@ interface ImageEditState {
     updater: ImageEditStoredMessage[] | ((prev: ImageEditStoredMessage[]) => ImageEditStoredMessage[])
   ) => void
   hydrateFromSession: (session: ImageEditSession) => void
+  resetToWelcome: () => void
 }
 
 export const useImageEditStore = create<ImageEditState>((set) => ({
@@ -48,6 +49,11 @@ export const useImageEditStore = create<ImageEditState>((set) => ({
       sourceMediaIds: session.sourceMediaIds,
       messages: session.messages.length > 0 ? session.messages : [WELCOME],
       hydrated: true
+    }),
+  resetToWelcome: () =>
+    set({
+      sourceMediaIds: [],
+      messages: [WELCOME]
     })
 }))
 

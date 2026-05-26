@@ -86,8 +86,19 @@ export class AnalysisQueue {
   }
 
   async retryMedia(mediaId: string): Promise<void> {
-    mediaRepository.setStatus(mediaId, 'pending')
+    mediaRepository.setStatus(mediaId, 'pending', null)
     if (!this.running) await this.start()
+  }
+
+  async retryAllFailed(): Promise<number> {
+    const rows = getDb()
+      .prepare(`SELECT id FROM media_items WHERE analysis_status = 'failed'`)
+      .all() as Array<{ id: string }>
+    for (const { id } of rows) {
+      mediaRepository.setStatus(id, 'pending', null)
+    }
+    if (rows.length > 0 && !this.running) await this.start()
+    return rows.length
   }
 
   private async processLoop(): Promise<void> {
@@ -169,7 +180,7 @@ export class AnalysisQueue {
       }
       if (!this.stopRequested) {
         console.error(`Analysis failed for ${filePath}:`, lastError)
-        mediaRepository.setStatus(mediaId, 'failed')
+        mediaRepository.setStatus(mediaId, 'failed', lastError?.message ?? '分析失败')
       }
     } finally {
       this.processingItems.delete(mediaId)

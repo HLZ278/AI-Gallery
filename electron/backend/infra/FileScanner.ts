@@ -208,7 +208,19 @@ export class MediaRepository {
     return Boolean(row)
   }
 
-  setStatus(id: string, status: AnalysisStatus): void {
+  setStatus(id: string, status: AnalysisStatus, analysisError?: string | null): void {
+    if (analysisError !== undefined) {
+      getDb()
+        .prepare('UPDATE media_items SET analysis_status = ?, analysis_error = ? WHERE id = ?')
+        .run(status, analysisError, id)
+      return
+    }
+    if (status === 'pending' || status === 'processing' || status === 'done') {
+      getDb()
+        .prepare('UPDATE media_items SET analysis_status = ?, analysis_error = NULL WHERE id = ?')
+        .run(status, id)
+      return
+    }
     getDb().prepare('UPDATE media_items SET analysis_status = ? WHERE id = ?').run(status, id)
   }
 

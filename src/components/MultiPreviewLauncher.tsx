@@ -23,7 +23,7 @@ export function MultiPreviewLauncher({ selected, selectedItems, onLaunchSelected
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-card)]/60 shrink-0 flex-wrap">
-      <span className="text-xs text-[var(--color-muted)] shrink-0">多媒体对比</span>
+      <span className="text-xs text-[var(--color-muted)] shrink-0">多图对比</span>
 
       {showSelectedButton && (
         <button

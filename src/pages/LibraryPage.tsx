@@ -3,6 +3,7 @@ import type { Library } from '../../shared/types'
 import { ContextMenu, type ContextMenuItem } from '../components/ContextMenu'
 import { formatFileSize } from '../utils/formatMedia'
 import { useAppStore } from '../store/appStore'
+import { toast } from '../store/toastStore'
 
 const LIBRARY_MENU: ContextMenuItem[] = [
   { id: 'openLocation', label: '打开所在位置' },
@@ -32,6 +33,9 @@ export function LibraryPage() {
     try {
       await window.api.library.scan(id)
       await refresh()
+      toast('扫描完成', 'success')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
     } finally {
       setScanning(null)
     }

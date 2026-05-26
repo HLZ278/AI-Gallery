@@ -1,4 +1,5 @@
 import type { MediaType } from '../../shared/types'
+import { analysisStatusLabel } from '../utils/formatMedia'
 
 const labels: Record<MediaType, string> = {
   photo: '照片',
@@ -20,5 +21,5 @@ export function MediaTypeBadge({ type }: { type: MediaType }) {
 export function StatusDot({ status }: { status: string }) {
   const color =
     status === 'done' ? 'bg-green-500' : status === 'failed' ? 'bg-red-500' : status === 'processing' ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'
-  return <span className={`inline-block w-2 h-2 rounded-full ${color}`} title={status} />
+  return <span className={`inline-block w-2 h-2 rounded-full ${color}`} title={analysisStatusLabel(status)} />
 }

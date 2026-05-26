@@ -9,6 +9,7 @@ interface AppState {
   importProgress: ImportProgress | null
   theme: 'light' | 'dark'
   selectedMedia: MediaItem | null
+  initError: string | null
   setConfig: (config: AppConfig | null) => void
   setLibraries: (libraries: Library[]) => void
   setSelectedLibraryId: (id: string | null) => void
@@ -16,6 +17,7 @@ interface AppState {
   setImportProgress: (p: ImportProgress | null) => void
   setTheme: (theme: 'light' | 'dark') => void
   setSelectedMedia: (media: MediaItem | null) => void
+  setInitError: (initError: string | null) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -26,11 +28,13 @@ export const useAppStore = create<AppState>((set) => ({
   importProgress: null,
   theme: 'light',
   selectedMedia: null,
+  initError: null,
   setConfig: (config) => set({ config }),
   setLibraries: (libraries) => set({ libraries }),
   setSelectedLibraryId: (id) => set({ selectedLibraryId: id }),
   setAnalysisProgress: (p) => set({ analysisProgress: p }),
   setImportProgress: (p) => set({ importProgress: p }),
   setTheme: (theme) => set({ theme }),
-  setSelectedMedia: (media) => set({ selectedMedia: media })
+  setSelectedMedia: (media) => set({ selectedMedia: media }),
+  setInitError: (initError) => set({ initError })
 }))
