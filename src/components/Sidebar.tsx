@@ -8,7 +8,8 @@ const navItems = [
   { to: '/image-edit', label: 'AI 编辑', icon: '🎨' },
   { to: '/library', label: '图库', icon: '📁' },
   { to: '/import', label: '导入', icon: '📥' },
-  { to: '/settings', label: '设置', icon: '⚙️' }
+  { to: '/settings', label: '设置', icon: '⚙️' },
+  { to: '/about', label: '关于', icon: 'ℹ️' }
 ]
 
 export function Sidebar() {

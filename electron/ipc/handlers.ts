@@ -11,9 +11,12 @@ import { imageEditService } from '../backend/services/ImageEditService'
 import { lanServerService } from '../backend/services/LanServerService'
 import { libraryWatcherService } from '../backend/services/LibraryWatcherService'
 import { testLlmConnection } from '../backend/services/ConfigTestService'
+import { aboutService } from '../backend/services/AboutService'
 import type { AppConfig, ImageEditRequest, ImageEditSession, ImageGenRequest, ImageGenSession, MediaType, SearchQuery } from '../../shared/types'
 
 export function registerIpcHandlers(): void {
+  ipcMain.handle('about:getInfo', () => aboutService.getInfo())
+
   ipcMain.handle('config:get', () => configService.load())
   ipcMain.handle('config:save', async (_e, config: AppConfig) => {
     configService.save(config)

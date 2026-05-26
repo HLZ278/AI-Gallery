@@ -8,6 +8,7 @@ import { SearchPage } from '../pages/SearchPage'
 import { ImageGenPage } from '../pages/ImageGenPage'
 import { ImageEditPage } from '../pages/ImageEditPage'
 import { SettingsPage } from '../pages/SettingsPage'
+import { AboutPage } from '../pages/AboutPage'
 import { useAppInit } from '../hooks/useAppInit'
 import { useAppStore } from '../store/appStore'
 
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/import" element={<ImportPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/about" element={<AboutPage />} />
           </Routes>
         </main>
       </div>

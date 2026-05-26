@@ -294,7 +294,21 @@ export interface ImageAnalysisPayload {
   ip_references?: string[]
 }
 
+export interface AppAboutInfo {
+  productName: string
+  version: string
+  contactEmail: string
+  licenseName: string
+  licenseText: string
+  releaseDate: string
+  releaseHighlights: string[]
+  copyright: string
+}
+
 export interface IpcApi {
+  about: {
+    getInfo: () => Promise<AppAboutInfo>
+  }
   config: {
     get: () => Promise<AppConfig>
     save: (config: AppConfig) => Promise<void>

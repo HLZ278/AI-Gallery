@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { AppConfig, ImageEditRequest, ImageEditSession, ImageGenRequest, ImageGenSession, MediaType, SearchQuery } from '../shared/types'
 
 const api = {
+  about: {
+    getInfo: () => ipcRenderer.invoke('about:getInfo')
+  },
   config: {
     get: (): Promise<AppConfig> => ipcRenderer.invoke('config:get'),
     save: (config: AppConfig): Promise<void> => ipcRenderer.invoke('config:save', config),

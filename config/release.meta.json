@@ -1,0 +1,20 @@
+{
+  "productName": "AI图库",
+  "contactEmail": "969161516@qq.com",
+  "copyright": "Copyright © 2026 AI图库",
+  "license": {
+    "name": "MIT License",
+    "file": "LICENSE.txt"
+  },
+  "release": {
+    "date": "2026-05-26",
+    "highlights": [
+      "提示词自动选用最新版本，设置更简洁",
+      "搜索网格虚拟滚动与布局修复",
+      "图库目录变更监控",
+      "视频 / GIF 多帧 AI 分析",
+      "向量语义搜索与 AI 智能搜索",
+      "文生图、AI 图片编辑、局域网传输"
+    ]
+  }
+}
