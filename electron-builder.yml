@@ -1,0 +1,13 @@
+appId: com.yourpicture.app
+productName: YourPicture
+directories:
+  output: release
+files:
+  - out/**/*
+  - prompts/**/*
+  - config/**/*
+win:
+  target: nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
