@@ -1,6 +1,5 @@
 import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
-import { app } from 'electron'
 
 export type PromptKind = 'image' | 'video' | 'gif' | 'search'
 
@@ -17,8 +16,16 @@ export interface PromptFileRef {
 }
 
 function resolvePromptsDir(): string {
+  const fromEnv = process.env.PICTURESEARCH_PROMPTS_DIR?.trim()
+  if (fromEnv && existsSync(fromEnv)) return fromEnv
+  let appPath = process.cwd()
+  try {
+    if (app?.getAppPath) appPath = app.getAppPath()
+  } catch {
+    /* worker */
+  }
   const candidates = [
-    join(app.getAppPath(), 'prompts'),
+    join(appPath, 'prompts'),
     join(__dirname, '../../prompts'),
     join(process.cwd(), 'prompts')
   ]

@@ -15,7 +15,10 @@ AI图库 是一款 Windows 智能图库桌面应用，通过视觉大模型对�
 
 ```
 UI (React) → IPC → Services → Domain → Infrastructure → SQLite / 文件系统
+                              ↘ LocalInferenceBridge → 推理子进程 (ONNX / transformers)
 ```
+
+本地 **Qwen VL 描述** 与 **BGE 向量** 在独立子进程中执行，主进程仅负责队列、数据库与 IPC，避免 ONNX 阻塞 UI。
 
 | 层级 | 职责 |
 |------|------|
@@ -44,6 +47,10 @@ UI (React) → IPC → Services → Domain → Infrastructure → SQLite / 文�
 Apple 风格 Design Token：圆角 12px、毛玻璃侧边栏、#007AFF 强调色、深浅色主题。
 
 页面：搜索、文生图、AI 编辑、图库、导入、设置。
+
+### v1.8.1 变更
+
+- **推理子进程**：`LocalInferenceBridge` fork `localInferenceWorker`，主进程不加载 transformers；`sendRequest` / `ensureStarted` 避免启动死锁
 
 ### v1.8.0 变更
 

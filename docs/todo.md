@@ -12,6 +12,11 @@
 - [x] 文档同步、搜索体验、详情面板、设置项、工作流、错误反馈
 - [x] 虚拟滚动 MediaGrid、AI 编辑分页、批量重试、chokidar 监控
 
+## v1.8.1 已完成（2026-05-28）
+
+- [x] LocalInferenceBridge + localInferenceWorker 子进程推理
+- [x] 修复 Bridge 启动死锁与 refreshConfig
+
 ## v1.8.0 已完成（2026-05-28）
 
 - [x] 本地端侧分析与向量索引（Qwen3-VL / Qwen2.5-VL、BGE、Provider 架构）

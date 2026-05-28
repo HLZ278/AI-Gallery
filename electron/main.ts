@@ -7,8 +7,8 @@ import { closeDb } from './backend/db/DatabaseManager'
 import { lanServerService } from './backend/services/LanServerService'
 import { libraryWatcherService } from './backend/services/LibraryWatcherService'
 import { configService } from './backend/services/ConfigService'
-import { applyTransformersEnv } from './backend/infra/TransformersEnv'
 import { syncReadyMarkersFromCache } from './backend/services/LocalModelReady'
+import { localInferenceBridge } from './backend/services/LocalInferenceBridge'
 import { localModelService } from './backend/services/LocalModelService'
 import { migrateModelsCacheFromLegacy } from './backend/services/ModelsCacheMigration'
 
@@ -79,7 +79,7 @@ app.whenReady().then(async () => {
   configService.load()
   localModelService.evictCaptionBackends()
   syncReadyMarkersFromCache()
-  applyTransformersEnv().catch((err) => console.error('Transformers env init failed:', err))
+  void localInferenceBridge.start().catch((err) => console.error('Inference worker start failed:', err))
   registerIpcHandlers()
   lanServerService.applyConfig().catch((err) => console.error('LAN server start failed:', err))
   libraryWatcherService.start().catch((err) => console.error('Library watcher start failed:', err))
@@ -95,9 +95,14 @@ app.whenReady().then(async () => {
   })
 })
 
+app.on('before-quit', () => {
+  localInferenceBridge.shutdown()
+})
+
 app.on('window-all-closed', () => {
   void libraryWatcherService.stop()
   lanServerService.stop()
+  localInferenceBridge.shutdown()
   closeDb()
   if (process.platform !== 'darwin') app.quit()
 })

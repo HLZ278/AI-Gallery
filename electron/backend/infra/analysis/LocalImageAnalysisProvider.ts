@@ -28,14 +28,13 @@ export class LocalImageAnalysisProvider implements IImageAnalysisProvider {
       }
     }
 
-    const captions: string[] = []
     const allColors: string[] = []
     for (const buffer of prepared.buffers) {
-      captions.push(await localModelService.captionImage(buffer, modelId))
       const colors = await mediaPreprocessor.extractDominantColors(buffer)
       allColors.push(...colors)
     }
-    const mergedCaption = mergeFrameCaptions(captions)
+    const rawMerged = await localModelService.captionImages(prepared.buffers, modelId)
+    const mergedCaption = mergeFrameCaptions(rawMerged.split('\n').filter(Boolean))
     const uniqueColors = [...new Set(allColors)].slice(0, 5)
     return {
       payload: mapLocalCaptionToPayload({

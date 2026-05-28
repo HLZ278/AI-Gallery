@@ -8,7 +8,8 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          index: resolve(__dirname, 'electron/main.ts')
+          index: resolve(__dirname, 'electron/main.ts'),
+          localInferenceWorker: resolve(__dirname, 'electron/backend/workers/localInferenceWorker.ts')
         }
       }
     }

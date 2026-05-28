@@ -1,13 +1,21 @@
-import { app } from 'electron'
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import type { LocalModelEntry, LocalModelsRegistry } from '../../../shared/types'
 
 export { getModelsCacheDir } from '../infra/AppPaths'
 
-function getRegistryPath(): string {
+export function resolveRegistryPath(): string {
+  const fromEnv = process.env.PICTURESEARCH_REGISTRY_PATH?.trim()
+  if (fromEnv && existsSync(fromEnv)) return fromEnv
+  let appPath = process.cwd()
+  try {
+    const { app } = require('electron') as typeof import('electron')
+    if (app?.getAppPath) appPath = app.getAppPath()
+  } catch {
+    /* inference worker */
+  }
   const paths = [
-    join(app.getAppPath(), 'config/local-models.json'),
+    join(appPath, 'config/local-models.json'),
     join(__dirname, '../../config/local-models.json'),
     join(process.cwd(), 'config/local-models.json')
   ]
@@ -21,7 +29,7 @@ let cached: LocalModelsRegistry | null = null
 
 export function loadLocalModelsRegistry(): LocalModelsRegistry {
   if (cached) return cached
-  const raw = readFileSync(getRegistryPath(), 'utf-8')
+  const raw = readFileSync(resolveRegistryPath(), 'utf-8')
   cached = JSON.parse(raw) as LocalModelsRegistry
   return cached
 }

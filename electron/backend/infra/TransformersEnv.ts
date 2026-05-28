@@ -1,4 +1,4 @@
-import { configService } from '../services/ConfigService'
+import { getActiveConfig } from './ActiveConfig'
 import { findCaptionModel, findEmbeddingModel, getModelsCacheDir } from '../services/LocalModelRegistry'
 import { isRepoCachedInFilesystem } from '../services/LocalModelReady'
 
@@ -68,7 +68,7 @@ function installFetchDiagnostics(): void {
 
 /** 避免系统里无效 HF_TOKEN 导致 "Invalid username or password" */
 export function applyHfTokenForDownload(): void {
-  const config = configService.load().localModels
+  const config = getActiveConfig().localModels
   if (!savedEnvTokens) {
     savedEnvTokens = {
       HF_TOKEN: process.env.HF_TOKEN,
@@ -103,7 +103,7 @@ export async function applyTransformersEnv(): Promise<void> {
   installFetchDiagnostics()
   if (configured) return
   const { env } = await import('@huggingface/transformers')
-  const config = configService.load()
+  const config = getActiveConfig()
   const cacheDir = getModelsCacheDir()
 
   env.cacheDir = cacheDir
@@ -135,7 +135,7 @@ export function resetTransformersEnv(): void {
 }
 
 export function getEffectiveRemoteHost(): string {
-  return resolveRemoteHost(configService.load().localModels?.remoteHost)
+  return resolveRemoteHost(getActiveConfig().localModels?.remoteHost)
 }
 
 function resolveRemoteHost(configHost?: string): string {
@@ -162,7 +162,7 @@ export async function probeRepoFile(hfRepo: string, fileName = 'tokenizer_config
   const url = buildResolveUrl(hfRepo, fileName)
   applyHfTokenForDownload()
   try {
-    const headers: Record<string, string> = { 'User-Agent': 'PictureSearch/1.8.0 local-model-probe' }
+    const headers: Record<string, string> = { 'User-Agent': 'PictureSearch/1.8.1 local-model-probe' }
     const token = process.env.HF_TOKEN?.trim()
     if (token) headers.Authorization = `Bearer ${token}`
     log(`probe ${url}`)

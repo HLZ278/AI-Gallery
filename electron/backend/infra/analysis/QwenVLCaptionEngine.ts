@@ -1,4 +1,4 @@
-import { configService } from '../../services/ConfigService'
+import { getActiveConfig } from '../ActiveConfig'
 import { getModelsCacheDir } from '../../services/LocalModelRegistry'
 import { applyTransformersEnv } from '../TransformersEnv'
 import {
@@ -55,7 +55,7 @@ export class QwenVLCaptionEngine {
       throw new Error(`不支持的 Qwen VL pipeline: ${entry.pipeline}`)
     }
     const pipeline = entry.pipeline
-    const config = configService.load()
+    const config = getActiveConfig()
     const preference = forcePrimaryDevice ?? resolveInferenceDevicePreference(config.localModels.inferenceDevice)
     const candidates = inferenceDeviceFallbackOrder(preference)
     const dtype = entry.dtype ?? DEFAULT_QWEN_VL_DTYPE

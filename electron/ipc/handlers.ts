@@ -13,6 +13,7 @@ import { libraryWatcherService } from '../backend/services/LibraryWatcherService
 import { testLlmConnection } from '../backend/services/ConfigTestService'
 import { aboutService } from '../backend/services/AboutService'
 import { localModelService } from '../backend/services/LocalModelService'
+import { localInferenceBridge } from '../backend/services/LocalInferenceBridge'
 import { resetEmbeddingProviderCache } from '../backend/infra/embedding/EmbeddingProviderFactory'
 import { resetTransformersEnv } from '../backend/infra/TransformersEnv'
 import type { AppConfig, ImageEditRequest, ImageEditSession, ImageGenRequest, ImageGenSession, MediaType, SearchQuery } from '../../shared/types'
@@ -26,6 +27,8 @@ export function registerIpcHandlers(): void {
     configService.reload()
     resetEmbeddingProviderCache()
     resetTransformersEnv()
+    localModelService.evictCaptionBackends()
+    void localInferenceBridge.refreshConfig().catch((err) => console.error('Inference worker re-init failed:', err))
     await lanServerService.applyConfig()
   })
   ipcMain.handle('config:getDefaults', () => configService.getDefaults())

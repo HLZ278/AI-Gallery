@@ -2,7 +2,23 @@
 
 > 每一次功能变动均记录于此。版本快照见 `versions/` 与 `snapshots/`。
 
+## [1.8.1] - 2026-05-28
+
+### 修复
+
+- 修复 `LocalInferenceBridge` 启动死锁：`doStart` 与 `request` 循环等待导致 `PromiseRejectCallback` 异常
+- 子进程 IPC 就绪等待、启动失败时重置 `initPromise`；设置保存后 `refreshConfig` 推送配置
+
+### 变更
+
+- 本地 ONNX 推理完整落地为 **fork 子进程**（`LocalInferenceBridge` + `localInferenceWorker`），主进程仅调度与写库
+- caption 提示词在主进程解析后传入 worker，避免子进程打包依赖 `electron`
+
 ## [1.8.0] - 2026-05-28
+
+### 变更
+
+- 本地 ONNX 推理迁至 **独立子进程**（`localInferenceWorker`），主进程不再加载 `@huggingface/transformers`，分析时 UI 保持响应
 
 ### 新增
 
