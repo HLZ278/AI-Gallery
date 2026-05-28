@@ -8,6 +8,10 @@
     "maxRetries": 2
   },
   "analysis": {
+    "defaultMode": "local",
+    "localCaptionModelId": "qwen3-vl-2b-caption",
+    "localConcurrency": 1,
+    "fallbackToCloudWhenLocalUnavailable": true,
     "videoFrameCount": 8,
     "gifFrameCount": 5,
     "sequenceFrameFps": 2,
@@ -19,9 +23,18 @@
     "maxCatalogItems": 500,
     "chunkSize": 80
   },
+  "localModels": {
+    "remoteHost": "",
+    "remotePathTemplate": "",
+    "hfToken": "",
+    "ignoreEnvHfToken": true,
+    "inferenceDevice": "wasm"
+  },
   "embedding": {
     "enabled": true,
+    "provider": "local",
     "model": "text-embedding-v3",
+    "localModelId": "bge-small-zh",
     "minScore": 0.25,
     "topK": 120,
     "autoIndexOnAnalysis": true

@@ -2,6 +2,61 @@ export type MediaType = 'photo' | 'video' | 'gif' | 'live_photo' | 'panorama' | 
 
 export type AnalysisStatus = 'pending' | 'processing' | 'done' | 'failed'
 
+export type AnalysisMode = 'local' | 'cloud'
+
+export type EmbeddingProviderType = 'local' | 'cloud'
+
+export type InferenceDevicePreference = 'auto' | 'wasm' | 'cuda' | 'dml'
+
+export interface LocalModelDtypeConfig {
+  embed_tokens?: string
+  vision_encoder?: string
+  decoder_model_merged?: string
+}
+
+export interface LocalModelEntry {
+  id: string
+  label: string
+  hfRepo: string
+  /** qwen2.5-vl | qwen3-vl | feature-extraction */
+  pipeline: string
+  captionPrompt?: string
+  /** 为 true 时使用 prompts/image_analysis 的 local_caption_instruction（与云端维度对齐） */
+  useAnalysisPrompt?: boolean
+  maxNewTokens?: number
+  imageEdge?: number
+  dtype?: LocalModelDtypeConfig
+  recommended?: boolean
+  recommendedConcurrency?: number
+  estimatedSizeMb?: number
+  dimensions?: number
+  deprecated?: boolean
+}
+
+export interface LocalModelsRegistry {
+  caption: LocalModelEntry[]
+  embedding: LocalModelEntry[]
+}
+
+export interface LocalModelStatusItem {
+  id: string
+  label: string
+  kind: 'caption' | 'embedding'
+  ready: boolean
+  downloading: boolean
+  progress?: number
+  error?: string
+  estimatedSizeMb?: number
+}
+
+export interface LocalModelStatus {
+  modelsDir: string
+  cacheSizeMb: number
+  effectiveRemoteHost: string
+  items: LocalModelStatusItem[]
+  allReady: boolean
+}
+
 export interface AppConfig {
   llm: {
     apiKey: string
@@ -12,6 +67,10 @@ export interface AppConfig {
     maxRetries: number
   }
   analysis: {
+    defaultMode: AnalysisMode
+    localCaptionModelId: string
+    localConcurrency: number
+    fallbackToCloudWhenLocalUnavailable: boolean
     videoFrameCount: number
     gifFrameCount: number
     sequenceFrameFps: number
@@ -23,9 +82,23 @@ export interface AppConfig {
     maxCatalogItems: number
     chunkSize: number
   }
+  localModels: {
+    /** 留空则读取环境变量 HF_ENDPOINT，再回退 huggingface.co；国内可填 https://hf-mirror.com */
+    remoteHost: string
+    /** 留空使用库默认：{model}/resolve/{revision}/（勿含 {file}，文件名由库自动追加） */
+    remotePathTemplate: string
+    /** 可选 HF 只读 Token；部分网络/模型需要 */
+    hfToken: string
+    /** 为 true 时忽略系统环境变量中的 HF_TOKEN，避免无效 token 导致 401 */
+    ignoreEnvHfToken: boolean
+    /** auto/wasm：ONNX CPU；cuda：NVIDIA；dml 在桌面端会映射为 CPU（Qwen VL 勿用 DirectML） */
+    inferenceDevice: InferenceDevicePreference
+  }
   embedding: {
     enabled: boolean
+    provider: EmbeddingProviderType
     model: string
+    localModelId: string
     minScore: number
     topK: number
     autoIndexOnAnalysis: boolean
@@ -336,6 +409,7 @@ export interface IpcApi {
     list: (libraryId?: string, page?: number, pageSize?: number) => Promise<SearchResult>
     getAnalysis: (mediaId: string) => Promise<AnalysisResult | null>
     retryAnalysis: (mediaId: string) => Promise<void>
+    enhanceAnalysis: (mediaId: string) => Promise<void>
     removeFromDb: (mediaId: string) => Promise<void>
     deleteFromDisk: (mediaId: string) => Promise<void>
     copy: (filePath: string, mediaType: MediaType) => Promise<void>
@@ -349,8 +423,16 @@ export interface IpcApi {
     stop: () => Promise<void>
     pause: () => Promise<void>
     retryAllFailed: () => Promise<number>
+    enhanceBatch: (mediaIds: string[]) => Promise<number>
     getProgress: () => Promise<AnalysisProgress>
     onProgress: (callback: (progress: AnalysisProgress) => void) => () => void
+  }
+  localModel: {
+    getRegistry: () => Promise<LocalModelsRegistry>
+    getStatus: () => Promise<LocalModelStatus>
+    download: (modelId: string, kind: 'caption' | 'embedding') => Promise<void>
+    cancelDownload: () => Promise<void>
+    onDownloadProgress: (callback: (payload: { modelId: string; progress: number }) => void) => () => void
   }
   embedding: {
     backfill: () => Promise<{ indexed: number; failed: number; skipped?: number }>

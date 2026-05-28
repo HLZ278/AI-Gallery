@@ -1,0 +1,45 @@
+{
+  "caption": [
+    {
+      "id": "qwen3-vl-2b-caption",
+      "label": "Qwen3-VL 2B（推荐，新一代推理）",
+      "hfRepo": "onnx-community/Qwen3-VL-2B-Instruct-ONNX",
+      "pipeline": "qwen3-vl",
+      "useAnalysisPrompt": true,
+      "recommended": true,
+      "maxNewTokens": 768,
+      "imageEdge": 448,
+      "estimatedSizeMb": 4500,
+      "dtype": {
+        "embed_tokens": "fp32",
+        "vision_encoder": "fp32",
+        "decoder_model_merged": "q4"
+      }
+    },
+    {
+      "id": "qwen2.5-vl-3b-caption",
+      "label": "Qwen2.5-VL 3B（OCR/细节更好，约 5.5GB）",
+      "hfRepo": "onnx-community/Qwen2.5-VL-3B-Instruct-ONNX",
+      "pipeline": "qwen2.5-vl",
+      "useAnalysisPrompt": true,
+      "maxNewTokens": 768,
+      "imageEdge": 448,
+      "estimatedSizeMb": 5500,
+      "dtype": {
+        "embed_tokens": "fp32",
+        "vision_encoder": "fp32",
+        "decoder_model_merged": "q4"
+      }
+    }
+  ],
+  "embedding": [
+    {
+      "id": "bge-small-zh",
+      "label": "BGE 中文向量（512 维）",
+      "hfRepo": "Xenova/bge-small-zh-v1.5",
+      "pipeline": "feature-extraction",
+      "dimensions": 512,
+      "estimatedSizeMb": 95
+    }
+  ]
+}

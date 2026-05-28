@@ -2,6 +2,27 @@
 
 > 每一次功能变动均记录于此。版本快照见 `versions/` 与 `snapshots/`。
 
+## [1.8.0] - 2026-05-28
+
+### 新增
+
+- 本地端侧分析与向量索引：默认零 token 建库，可选云端增强
+- 升级 `@huggingface/transformers` 4.x；`QwenVLCaptionEngine` 统一 `qwen2.5-vl` / `qwen3-vl` pipeline
+- **Qwen3-VL 2B** 默认推荐；可选 **Qwen2.5-VL 3B**（`config/local-models.json` 注册，无硬编码型号）
+- Provider：`LocalImageAnalysisProvider` / `CloudImageAnalysisProvider`、`LocalEmbeddingProvider` / `OpenAIEmbeddingProvider`
+- 本地模型下载与管理 IPC（`localModel:*`）、设置页一键下载与推理设备选择
+- 单张/批量云端增强：`media:enhanceAnalysis`、`analysis:enhanceBatch`；`model_name` 区分 `local/` / `cloud/`
+- 本地 caption JSON 解析（markdown 代码块、中文字段名）写入分析字段
+- 模型缓存目录改为安装目录 `models/`，启动迁移旧 `%APPDATA%/YourPicture/models`
+- 重写 README（功能对比、流程图、快速开始）
+
+### 修复
+
+- 本地模型下载 URL 模板：`{model}/resolve/{revision}/`，避免 `{file}` 拼接导致 401
+- `RawImage` 路径/帧 buffer 解码；`ignoreEnvHfToken` 与可选 `hfToken`、下载诊断日志
+- 桌面端 `inferenceDevice` 映射为 ONNX **cpu**（Node 不支持 `wasm` 设备名）；DML 失败自动 CPU 重载
+- 移除 Qwen2-VL 2B 及 `qwen2-vl` pipeline；旧配置 `qwen2-vl-2b-caption` 自动迁移
+
 ## [1.7.1] - 2026-05-26
 
 ### 提示词自动最新

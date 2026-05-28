@@ -12,6 +12,12 @@
 - [x] 文档同步、搜索体验、详情面板、设置项、工作流、错误反馈
 - [x] 虚拟滚动 MediaGrid、AI 编辑分页、批量重试、chokidar 监控
 
+## v1.8.0 已完成（2026-05-28）
+
+- [x] 本地端侧分析与向量索引（Qwen3-VL / Qwen2.5-VL、BGE、Provider 架构）
+- [x] 模型缓存迁至安装目录 `models/`、推理设备 CPU 映射与 DML 回退
+- [x] 移除 Qwen2-VL；README 与 CHANGELOG 归档
+
 ## 后续可选
 
 - [ ] 图库页内浏览网格

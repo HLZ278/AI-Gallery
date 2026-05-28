@@ -45,6 +45,12 @@ Apple 风格 Design Token：圆角 12px、毛玻璃侧边栏、#007AFF 强调色
 
 页面：搜索、文生图、AI 编辑、图库、导入、设置。
 
+### v1.8.0 变更
+
+- **本地端侧分析**：默认 `@huggingface/transformers` + ONNX，零 token 建索引；模型 registry 见 `config/local-models.json`
+- **混合增强**：详情/右键/多选「云端增强分析」，覆盖本地结果
+- **本地向量**：`embedding.provider=local` 时使用 BGE 中文 embedding，与云端索引隔离（`model_name` 校验）
+
 ### v1.7.0 变更
 
 - **GIF 多帧 AI 分析**：均匀抽帧 + 百炼 video 帧序列 API
@@ -72,12 +78,22 @@ Apple 风格 Design Token：圆角 12px、毛玻璃侧边栏、#007AFF 强调色
 - **视频预览**：自定义进度/倍速控件
 - **多图对比**：选中图片后选 1–6 张滑动窗口，左右平移比对
 
-## 6. 扩展预留
+## 6. 本地分析架构（v1.8.0）
 
-- 文件变更监控（chokidar）
-- 本地视觉模型接入（替换 LLMClient 实现）
+```
+AnalysisQueue → AnalysisProviderFactory → Local / Cloud Provider
+EmbeddingService → EmbeddingProviderFactory → Local / Cloud Provider
+LocalModelService → config/local-models.json → userData/models/
+```
 
-## 7. 变更归档
+- 云端分析仍走 `CloudImageAnalysisProvider`（原 LLMClient 逻辑）
+- 预处理共用 `MediaPreprocessor`（sharp / ffmpeg / GIF 抽帧）
+
+## 7. 扩展预留
+
+- CLIP 图像向量双索引（v2）
+
+## 8. 变更归档
 
 所有版本变动记录在 [archive/CHANGELOG.md](./archive/CHANGELOG.md)。  
 架构/设计快照见 [archive/snapshots/](./archive/snapshots/)。

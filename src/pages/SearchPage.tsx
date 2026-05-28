@@ -62,6 +62,7 @@ export function SearchPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [enhanceBusy, setEnhanceBusy] = useState(false)
 
   const navigateToImageEdit = useNavigateToImageEdit()
   const embeddingEnabled = config?.embedding.enabled ?? false
@@ -165,6 +166,33 @@ export function SearchPage() {
       return { ...prev, items }
     })
   }, [])
+
+  const patchMediaStatusBatch = useCallback((mediaIds: string[], status: AnalysisStatus) => {
+    const idSet = new Set(mediaIds)
+    setResult((prev) => {
+      if (!prev) return prev
+      const items = prev.items.map((item) => (idSet.has(item.id) ? { ...item, analysisStatus: status } : item))
+      return { ...prev, items }
+    })
+  }, [])
+
+  const runEnhance = useCallback(
+    async (mediaIds: string[]) => {
+      if (mediaIds.length === 0) return
+      setEnhanceBusy(true)
+      try {
+        patchMediaStatusBatch(mediaIds, 'pending')
+        const count = await window.api.analysis.enhanceBatch(mediaIds)
+        await window.api.analysis.start()
+        toast(`已提交 ${count} 项云端增强分析`, 'success')
+      } catch (err) {
+        toast(err instanceof Error ? err.message : String(err), 'error')
+      } finally {
+        setEnhanceBusy(false)
+      }
+    },
+    [patchMediaStatusBatch]
+  )
 
   useEffect(() => {
     if (!analysisProgress) return
@@ -314,6 +342,11 @@ export function SearchPage() {
       case 'showInFolder':
         await window.api.media.showInFolder(item.filePath)
         break
+      case 'enhanceCloud': {
+        const targets = selectedIds.has(item.id) && selectedIds.size > 1 ? getSelectedItems() : [item]
+        await runEnhance(targets.map((t) => t.id))
+        break
+      }
       case 'removeFromDb': {
         if (!confirm('从数据库移除此项？本地文件保留，重新扫描图库可再次导入并分析。')) return
         await window.api.media.removeFromDb(item.id)
@@ -526,7 +559,11 @@ export function SearchPage() {
             onLaunchSelected={openMultiPreviewSelected}
             onLaunchWindow={openMultiPreviewWindow}
           />
-          <MediaSelectionBar count={selectedIds.size} />
+          <MediaSelectionBar
+            count={selectedIds.size}
+            enhanceBusy={enhanceBusy}
+            onEnhanceBatch={() => void runEnhance(getSelectedItems().map((i) => i.id))}
+          />
           {viewMode === 'timeline' ? (
             <MediaTimeline
               items={gridItems}
@@ -577,6 +614,17 @@ export function SearchPage() {
               patchMediaStatus(mediaId, 'pending')
               await window.api.media.retryAnalysis(mediaId)
               await window.api.analysis.start()
+            }}
+            onEnhance={async () => {
+              const mediaId = selected.id
+              try {
+                patchMediaStatus(mediaId, 'pending')
+                await window.api.media.enhanceAnalysis(mediaId)
+                await window.api.analysis.start()
+              } catch (err) {
+                toast(err instanceof Error ? err.message : String(err), 'error')
+                throw err
+              }
             }}
           />
         )}

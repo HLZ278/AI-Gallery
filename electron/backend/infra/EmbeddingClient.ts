@@ -1,30 +1,7 @@
-import OpenAI from 'openai'
-import { configService } from '../services/ConfigService'
+import { createEmbeddingProvider } from './embedding/EmbeddingProviderFactory'
+import type { IEmbeddingProvider } from './embedding/IEmbeddingProvider'
 
-export interface IEmbeddingProvider {
-  embed(text: string): Promise<number[]>
-}
-
-export class OpenAIEmbeddingClient implements IEmbeddingProvider {
-  async embed(text: string): Promise<number[]> {
-    const config = configService.load()
-    const model = config.embedding.model
-    const client = new OpenAI({
-      apiKey: config.llm.apiKey,
-      baseURL: config.llm.baseUrl,
-      timeout: config.llm.timeoutMs
-    })
-
-    const response = await client.embeddings.create({
-      model,
-      input: text.slice(0, 8000)
-    })
-
-    const vector = response.data[0]?.embedding
-    if (!vector?.length) throw new Error('Empty embedding response')
-    return vector
-  }
-}
+export type { IEmbeddingProvider }
 
 export function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length || a.length === 0) return 0
@@ -40,4 +17,14 @@ export function cosineSimilarity(a: number[], b: number[]): number {
   return denom === 0 ? 0 : dot / denom
 }
 
-export const embeddingClient = new OpenAIEmbeddingClient()
+class EmbeddingClientFacade implements IEmbeddingProvider {
+  getModelName(): string {
+    return createEmbeddingProvider().getModelName()
+  }
+
+  async embed(text: string): Promise<number[]> {
+    return createEmbeddingProvider().embed(text)
+  }
+}
+
+export const embeddingClient = new EmbeddingClientFacade()

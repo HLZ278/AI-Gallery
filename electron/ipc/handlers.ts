@@ -12,6 +12,9 @@ import { lanServerService } from '../backend/services/LanServerService'
 import { libraryWatcherService } from '../backend/services/LibraryWatcherService'
 import { testLlmConnection } from '../backend/services/ConfigTestService'
 import { aboutService } from '../backend/services/AboutService'
+import { localModelService } from '../backend/services/LocalModelService'
+import { resetEmbeddingProviderCache } from '../backend/infra/embedding/EmbeddingProviderFactory'
+import { resetTransformersEnv } from '../backend/infra/TransformersEnv'
 import type { AppConfig, ImageEditRequest, ImageEditSession, ImageGenRequest, ImageGenSession, MediaType, SearchQuery } from '../../shared/types'
 
 export function registerIpcHandlers(): void {
@@ -21,6 +24,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('config:save', async (_e, config: AppConfig) => {
     configService.save(config)
     configService.reload()
+    resetEmbeddingProviderCache()
+    resetTransformersEnv()
     await lanServerService.applyConfig()
   })
   ipcMain.handle('config:getDefaults', () => configService.getDefaults())
@@ -68,7 +73,10 @@ export function registerIpcHandlers(): void {
   )
   ipcMain.handle('media:getAnalysis', (_e, mediaId: string) => searchService.getAnalysis(mediaId))
   ipcMain.handle('media:retryAnalysis', async (_e, mediaId: string) => {
-    await analysisQueue.retryMedia(mediaId)
+    await analysisQueue.retryMedia(mediaId, 'local')
+  })
+  ipcMain.handle('media:enhanceAnalysis', async (_e, mediaId: string) => {
+    await analysisQueue.enhanceMedia(mediaId)
   })
   ipcMain.handle('media:removeFromDb', (_e, mediaId: string) => {
     mediaService.removeFromDatabase(mediaId)
@@ -95,6 +103,16 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('analysis:pause', () => analysisQueue.pause())
   ipcMain.handle('analysis:getProgress', () => analysisQueue.getProgress())
   ipcMain.handle('analysis:retryAllFailed', async () => analysisQueue.retryAllFailed())
+  ipcMain.handle('analysis:enhanceBatch', async (_e, mediaIds: string[]) => analysisQueue.enhanceBatch(mediaIds))
+
+  ipcMain.handle('localModel:getRegistry', () => localModelService.getRegistry())
+  ipcMain.handle('localModel:getStatus', () => localModelService.getStatus())
+  ipcMain.handle('localModel:download', async (e, modelId: string, kind: 'caption' | 'embedding') => {
+    await localModelService.download(modelId, kind)
+    const win = BrowserWindow.fromWebContents(e.sender)
+    win?.webContents.send('localModel:downloadComplete', { modelId })
+  })
+  ipcMain.handle('localModel:cancel', () => localModelService.cancelDownload())
 
   ipcMain.handle('embedding:backfill', async () => embeddingService.backfillMissing())
   ipcMain.handle('embedding:rebuild', async () => embeddingService.rebuildAll())
@@ -132,6 +150,12 @@ export function registerIpcHandlers(): void {
   analysisQueue.onProgress((progress) => {
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send('analysis:progress', progress)
+    }
+  })
+
+  localModelService.onDownloadProgress((payload) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('localModel:downloadProgress', payload)
     }
   })
 }

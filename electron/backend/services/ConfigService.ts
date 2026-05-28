@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'fs'
 import { join } from 'path'
 import type { AppConfig } from '../../../shared/types'
+import { loadLocalModelsRegistry } from './LocalModelRegistry'
 
 const CONFIG_FILENAME = 'config.json'
 
@@ -36,6 +37,40 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Partial
   return result
 }
 
+function migrateAppConfig(config: AppConfig): AppConfig {
+  const legacyCaptionIds = [
+    'blip-caption',
+    'moondream2-caption',
+    'vit-gpt2-caption',
+    'qwen2-vl-2b-caption'
+  ]
+  const caption = loadLocalModelsRegistry().caption
+  const defaultCaptionId =
+    caption.find((m) => m.recommended)?.id ?? caption[0]?.id ?? 'qwen3-vl-2b-caption'
+  if (legacyCaptionIds.includes(config.analysis.localCaptionModelId)) {
+    config.analysis.localCaptionModelId = defaultCaptionId
+  }
+  if (!caption.some((m) => m.id === config.analysis.localCaptionModelId)) {
+    config.analysis.localCaptionModelId = defaultCaptionId
+  }
+  if (!config.localModels) {
+    config.localModels = {
+      remoteHost: '',
+      remotePathTemplate: '',
+      hfToken: '',
+      ignoreEnvHfToken: true,
+      inferenceDevice: 'wasm'
+    }
+  }
+  if (!config.localModels.inferenceDevice) {
+    config.localModels.inferenceDevice = 'wasm'
+  }
+  if (config.localModels.inferenceDevice === 'auto' || config.localModels.inferenceDevice === 'dml') {
+    config.localModels.inferenceDevice = 'wasm'
+  }
+  return config
+}
+
 export class ConfigService {
   private config: AppConfig | null = null
 
@@ -58,7 +93,7 @@ export class ConfigService {
       return defaults
     }
     const userConfig = JSON.parse(readFileSync(configPath, 'utf-8')) as Partial<AppConfig>
-    this.config = deepMerge(defaults, userConfig)
+    this.config = migrateAppConfig(deepMerge(defaults, userConfig))
     return this.config
   }
 

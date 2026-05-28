@@ -7,6 +7,7 @@ export type MediaContextAction =
   | 'copyPath'
   | 'lanShare'
   | 'sendToEdit'
+  | 'enhanceCloud'
   | 'removeFromDb'
   | 'deleteFromDisk'
   | 'showInFolder'
@@ -30,6 +31,7 @@ function buildMenuItems(mediaType: MediaType, variant: 'full' | 'preview'): Cont
     items.splice(3, 0, { id: 'sendToEdit', label: '发送到 AI 编辑' })
   }
 
+  items.push({ id: 'enhanceCloud', label: '云端增强分析' })
   items.push({ id: 'removeFromDb', label: '从数据库移除' }, { id: 'deleteFromDisk', label: '从本地删除', danger: true })
   return items
 }

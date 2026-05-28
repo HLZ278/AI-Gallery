@@ -10,6 +10,7 @@ import {
   mediaTypeLabel
 } from '../utils/formatMedia'
 import { fileNameFromPath } from '../utils/fileUrl'
+import { analysisSourceLabel } from '../utils/analysisSource'
 
 interface Props {
   item: MediaItem
@@ -17,6 +18,7 @@ interface Props {
   vectorScore?: number
   onClose: () => void
   onRetry?: () => void | Promise<void>
+  onEnhance?: () => void | Promise<void>
   onSearchTag?: (tag: string) => void
   onSendToEdit?: () => void
 }
@@ -29,6 +31,7 @@ export function DetailPanel({
   vectorScore,
   onClose,
   onRetry,
+  onEnhance,
   onSearchTag,
   onSendToEdit
 }: Props) {
@@ -57,13 +60,37 @@ export function DetailPanel({
     }
   }
 
-  const retryButton = onRetry ? (
-    <RetryAnalysisButton
-      onClick={handleRetry}
-      disabled={isAnalyzing}
-      label={isAnalyzing ? '分析中' : '重新分析'}
-    />
-  ) : null
+  const handleEnhance = async () => {
+    if (!onEnhance || isAnalyzing) return
+    setIsRetrying(true)
+    try {
+      await onEnhance()
+    } catch {
+      setIsRetrying(false)
+    }
+  }
+
+  const retryButton =
+    onRetry || onEnhance ? (
+      <div className="flex flex-wrap gap-2 pt-2">
+        {onRetry && (
+          <RetryAnalysisButton
+            onClick={handleRetry}
+            disabled={isAnalyzing}
+            label={isAnalyzing ? '分析中' : '本地重新分析'}
+            className=""
+          />
+        )}
+        {onEnhance && (
+          <RetryAnalysisButton
+            onClick={handleEnhance}
+            disabled={isAnalyzing}
+            label={isAnalyzing ? '分析中' : '云端增强分析'}
+            className=""
+          />
+        )}
+      </div>
+    ) : null
 
   return (
     <aside className="w-80 glass border-l border-[var(--color-border)] flex flex-col overflow-hidden">
@@ -124,7 +151,11 @@ export function DetailPanel({
             {analysis.analyzedAt > 0 && (
               <div className="text-[10px] text-[var(--color-muted)] space-y-0.5 pb-1 border-b border-[var(--color-border)]">
                 <p>分析时间：{formatDateTime(analysis.analyzedAt)}</p>
-                {analysis.modelName && <p>模型：{analysis.modelName}</p>}
+                {analysis.modelName && (
+                  <p>
+                    来源：{analysisSourceLabel(analysis.modelName)} · {analysis.modelName}
+                  </p>
+                )}
                 {analysis.promptVersion && <p>提示词版本：{analysis.promptVersion}</p>}
               </div>
             )}

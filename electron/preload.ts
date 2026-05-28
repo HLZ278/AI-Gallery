@@ -37,6 +37,7 @@ const api = {
       ipcRenderer.invoke('media:list', libraryId, page, pageSize),
     getAnalysis: (mediaId: string) => ipcRenderer.invoke('media:getAnalysis', mediaId),
     retryAnalysis: (mediaId: string) => ipcRenderer.invoke('media:retryAnalysis', mediaId),
+    enhanceAnalysis: (mediaId: string) => ipcRenderer.invoke('media:enhanceAnalysis', mediaId),
     removeFromDb: (mediaId: string) => ipcRenderer.invoke('media:removeFromDb', mediaId),
     deleteFromDisk: (mediaId: string) => ipcRenderer.invoke('media:deleteFromDisk', mediaId),
     copyPath: (filePath: string) => ipcRenderer.invoke('media:copyPath', filePath),
@@ -52,6 +53,7 @@ const api = {
     pause: () => ipcRenderer.invoke('analysis:pause'),
     getProgress: () => ipcRenderer.invoke('analysis:getProgress'),
     retryAllFailed: () => ipcRenderer.invoke('analysis:retryAllFailed'),
+    enhanceBatch: (mediaIds: string[]) => ipcRenderer.invoke('analysis:enhanceBatch', mediaIds),
     onProgress: (callback: (progress: unknown) => void) => {
       const handler = (_: unknown, progress: unknown) => callback(progress)
       ipcRenderer.on('analysis:progress', handler)
@@ -79,6 +81,18 @@ const api = {
     reject: (editId: string) => ipcRenderer.invoke('imageEdit:reject', editId),
     loadSession: () => ipcRenderer.invoke('imageEdit:loadSession'),
     saveSession: (session: ImageEditSession) => ipcRenderer.invoke('imageEdit:saveSession', session)
+  },
+  localModel: {
+    getRegistry: () => ipcRenderer.invoke('localModel:getRegistry'),
+    getStatus: () => ipcRenderer.invoke('localModel:getStatus'),
+    download: (modelId: string, kind: 'caption' | 'embedding') =>
+      ipcRenderer.invoke('localModel:download', modelId, kind),
+    cancelDownload: () => ipcRenderer.invoke('localModel:cancel'),
+    onDownloadProgress: (callback: (payload: { modelId: string; progress: number }) => void) => {
+      const handler = (_: unknown, payload: { modelId: string; progress: number }) => callback(payload)
+      ipcRenderer.on('localModel:downloadProgress', handler)
+      return () => ipcRenderer.removeListener('localModel:downloadProgress', handler)
+    }
   },
   lanServer: {
     getStatus: () => ipcRenderer.invoke('lanServer:getStatus'),

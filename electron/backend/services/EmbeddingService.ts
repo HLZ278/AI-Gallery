@@ -29,7 +29,7 @@ export class EmbeddingService {
         source_text = excluded.source_text,
         model_name = excluded.model_name,
         updated_at = excluded.updated_at
-    `).run(mediaId, JSON.stringify(vector), document, config.embedding.model, Date.now())
+    `).run(mediaId, JSON.stringify(vector), document, embeddingClient.getModelName(), Date.now())
   }
 
   scheduleIndex(mediaId: string): void {
@@ -50,7 +50,7 @@ export class EmbeddingService {
       LEFT JOIN media_embeddings e ON a.media_id = e.media_id
         AND (e.model_name IS NULL OR e.model_name = ?)
       WHERE e.media_id IS NULL
-    `).all(config.embedding.model) as Array<{ media_id: string }>
+    `).all(embeddingClient.getModelName()) as Array<{ media_id: string }>
 
     let indexed = 0
     let failed = 0
@@ -96,7 +96,7 @@ export class EmbeddingService {
   getStats(): { total: number; indexed: number; pending: number; staleModel: number; enabled: boolean } {
     const config = configService.load()
     const db = getDb()
-    const model = config.embedding.model
+    const model = embeddingClient.getModelName()
     const total = (db.prepare(`SELECT COUNT(*) as cnt FROM analysis_results`).get() as { cnt: number }).cnt
     const indexed = (
       db.prepare(

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { AppConfig } from '../../shared/types'
+import type { AppConfig, LocalModelStatus, LocalModelsRegistry } from '../../shared/types'
+import { toast } from '../store/toastStore'
 import { useAppStore } from '../store/appStore'
 
 export function SettingsPage() {
@@ -8,16 +9,44 @@ export function SettingsPage() {
   const setTheme = useAppStore((s) => s.setTheme)
   const [form, setForm] = useState<AppConfig | null>(null)
   const [saved, setSaved] = useState(false)
-  const [embedStats, setEmbedStats] = useState<{ total: number; indexed: number; pending: number } | null>(null)
+  const [embedStats, setEmbedStats] = useState<{
+    total: number
+    indexed: number
+    pending: number
+    staleModel?: number
+    enabled?: boolean
+  } | null>(null)
+  const [localModelStatus, setLocalModelStatus] = useState<LocalModelStatus | null>(null)
+  const [modelRegistry, setModelRegistry] = useState<LocalModelsRegistry | null>(null)
+  const [modelDownloadBusy, setModelDownloadBusy] = useState(false)
+  const [modelMsg, setModelMsg] = useState('')
   const [embedBusy, setEmbedBusy] = useState(false)
   const [embedMsg, setEmbedMsg] = useState('')
   const [lanMsg, setLanMsg] = useState('')
   const [llmTestMsg, setLlmTestMsg] = useState('')
   const [llmTesting, setLlmTesting] = useState(false)
 
+  const refreshEmbedStats = async () => {
+    setEmbedStats(await window.api.embedding.getStats())
+  }
+
+  const refreshLocalModelStatus = async () => {
+    try {
+      setLocalModelStatus(await window.api.localModel.getStatus())
+    } catch {
+      setLocalModelStatus(null)
+    }
+  }
+
   useEffect(() => {
     if (config) setForm(JSON.parse(JSON.stringify(config)))
-    window.api.embedding.getStats().then(setEmbedStats).catch(() => null)
+    void refreshEmbedStats()
+    void refreshLocalModelStatus()
+    window.api.localModel.getRegistry().then(setModelRegistry).catch(() => null)
+    const unsub = window.api.localModel.onDownloadProgress(() => {
+      void refreshLocalModelStatus()
+    })
+    return unsub
   }, [config])
 
   if (!form) return <div className="p-6">加载中...</div>
@@ -36,6 +65,10 @@ export function SettingsPage() {
 
   const updateEmbedding = (key: keyof AppConfig['embedding'], value: string | number | boolean) => {
     setForm({ ...form, embedding: { ...form.embedding, [key]: value } })
+  }
+
+  const updateLocalModels = (key: keyof AppConfig['localModels'], value: string | boolean) => {
+    setForm({ ...form, localModels: { ...form.localModels, [key]: value } })
   }
 
   const updateImageGen = (key: keyof AppConfig['imageGen'], value: string | number | boolean) => {
@@ -60,10 +93,6 @@ export function SettingsPage() {
     }
   }
 
-  const refreshEmbedStats = async () => {
-    setEmbedStats(await window.api.embedding.getStats())
-  }
-
   const runEmbedTask = async (task: 'backfill' | 'rebuild') => {
     setEmbedBusy(true)
     setEmbedMsg('')
@@ -83,12 +112,29 @@ export function SettingsPage() {
   const handleBackfill = () => runEmbedTask('backfill')
 
   const handleRebuild = () => {
-    if (
-      !confirm('将清空现有向量索引并全部重新建立，可能需要较长时间并消耗 API 额度，是否继续？')
-    ) {
-      return
-    }
+    const isCloudEmbed = form?.embedding.provider === 'cloud'
+    const warn = isCloudEmbed
+      ? '将清空现有向量索引并全部重新建立，可能需要较长时间并消耗 API 额度，是否继续？'
+      : '将清空现有向量索引并使用本地模型全部重新建立，是否继续？'
+    if (!confirm(warn)) return
     runEmbedTask('rebuild')
+  }
+
+  const handleDownloadModel = async (modelId: string, kind: 'caption' | 'embedding') => {
+    setModelDownloadBusy(true)
+    setModelMsg('')
+    try {
+      await window.api.localModel.download(modelId, kind)
+      setModelMsg('模型下载完成')
+      await refreshLocalModelStatus()
+      toast('模型下载完成', 'success')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setModelMsg(`下载失败：${msg}`)
+      toast(msg, 'error')
+    } finally {
+      setModelDownloadBusy(false)
+    }
   }
 
   const handleSave = async () => {
@@ -191,8 +237,132 @@ export function SettingsPage() {
       </section>
 
       <section className="mb-6 p-5 rounded-apple bg-[var(--color-card)] border border-[var(--color-border)] space-y-4">
-        <h2 className="font-semibold">分析</h2>
-        <p className="text-[10px] text-[var(--color-muted)]">分析提示词将自动使用最新版本；升级应用后请对旧图片重新分析以更新识别结果</p>
+        <h2 className="font-semibold">本地端侧分析</h2>
+        <p className="text-xs text-[var(--color-muted)]">
+          本地描述为 Qwen 视觉语言模型（推荐 Qwen3-VL 2B，约 4.5GB），提问对齐 image_analysis；大模型建议并发 1。向量用 BGE 中文。名人/IP/梗请用「云端增强分析」。
+        </p>
+        <Field label="HF 只读 Token（可选）">
+          <input
+            type="password"
+            value={form.localModels?.hfToken ?? ''}
+            onChange={(e) => updateLocalModels('hfToken', e.target.value)}
+            placeholder="一般留空；若仍 401 可在 huggingface.co/settings/tokens 创建 read token"
+            className="field-input"
+          />
+        </Field>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.localModels?.ignoreEnvHfToken ?? true}
+            onChange={(e) => updateLocalModels('ignoreEnvHfToken', e.target.checked)}
+          />
+          下载时忽略系统环境变量中的 HF_TOKEN（避免无效 token 导致 401）
+        </label>
+        <Field label="模型下载源（Hugging Face 镜像）">
+          <input
+            type="url"
+            value={form.localModels?.remoteHost ?? ''}
+            onChange={(e) => updateLocalModels('remoteHost', e.target.value)}
+            placeholder="留空则用环境变量 HF_ENDPOINT；国内建议 https://hf-mirror.com"
+            className="field-input"
+          />
+          <p className="text-[10px] text-[var(--color-muted)] mt-1">
+            无法访问 huggingface.co 时填写镜像。公开 ONNX 模型一般无需 HF 账号；下载地址形如：…/onnx-community/Qwen3-VL-2B-Instruct-ONNX/resolve/main/…
+            {localModelStatus?.effectiveRemoteHost && (
+              <> · 当前生效：{localModelStatus.effectiveRemoteHost}</>
+            )}
+          </p>
+        </Field>
+        <Field label="默认分析模式">
+          <select
+            value={form.analysis.defaultMode}
+            onChange={(e) => updateAnalysis('defaultMode', e.target.value)}
+            className="field-input"
+          >
+            <option value="local">本地（推荐，省 token）</option>
+            <option value="cloud">云端（消耗 API）</option>
+          </select>
+        </Field>
+        <Field label="本地描述模型">
+          <select
+            value={form.analysis.localCaptionModelId}
+            onChange={(e) => updateAnalysis('localCaptionModelId', e.target.value)}
+            className="field-input"
+          >
+            {(modelRegistry?.caption ?? []).map((m) => {
+              const st = localModelStatus?.items.find((i) => i.id === m.id && i.kind === 'caption')
+              const prefix = m.recommended ? '【推荐】' : ''
+              return (
+                <option key={m.id} value={m.id}>
+                  {prefix}
+                  {m.label} {st?.ready ? '（已就绪）' : '（未下载）'}
+                </option>
+              )
+            })}
+          </select>
+        </Field>
+        <Field label="本地推理设备">
+          <select
+            value={form.localModels?.inferenceDevice ?? 'wasm'}
+            onChange={(e) => updateLocalModels('inferenceDevice', e.target.value)}
+            className="field-input"
+          >
+            <option value="auto">自动（推荐 CPU，兼容 Qwen VL）</option>
+            <option value="wasm">CPU（推荐，桌面端使用 ONNX CPU）</option>
+            <option value="dml">DirectML（将自动改用 CPU，Qwen VL 不推荐）</option>
+            <option value="cuda">CUDA（NVIDIA GPU）</option>
+          </select>
+        </Field>
+        <Field label="本地分析并发">
+          <input
+            type="number"
+            min={1}
+            max={8}
+            value={form.analysis.localConcurrency}
+            onChange={(e) => updateAnalysis('localConcurrency', Number(e.target.value))}
+            className="field-input"
+          />
+        </Field>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.analysis.fallbackToCloudWhenLocalUnavailable}
+            onChange={(e) => updateAnalysis('fallbackToCloudWhenLocalUnavailable', e.target.checked)}
+          />
+          本地模型未就绪时自动回退云端分析（需 API Key，推荐开启）
+        </label>
+        {localModelStatus && (
+          <div className="text-xs text-[var(--color-muted)] space-y-2">
+            <p>模型目录：{localModelStatus.modelsDir}</p>
+            <p>缓存约 {localModelStatus.cacheSizeMb} MB</p>
+            {!localModelStatus.allReady && (
+              <p className="text-orange-500">部分模型未下载，本地分析/向量可能不可用</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {localModelStatus.items.map((item) => (
+                <button
+                  key={`${item.kind}-${item.id}`}
+                  type="button"
+                  disabled={modelDownloadBusy || item.ready || item.downloading}
+                  onClick={() => void handleDownloadModel(item.id, item.kind)}
+                  className="px-3 py-1.5 rounded-apple-sm border border-[var(--color-border)] text-[11px] disabled:opacity-50"
+                >
+                  {item.ready
+                    ? `${item.label} ✓`
+                    : item.downloading
+                      ? `${item.label} ${item.progress ?? 0}%`
+                      : `下载 ${item.label}`}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {modelMsg && <p className="text-xs text-[var(--color-accent)]">{modelMsg}</p>}
+      </section>
+
+      <section className="mb-6 p-5 rounded-apple bg-[var(--color-card)] border border-[var(--color-border)] space-y-4">
+        <h2 className="font-semibold">分析参数</h2>
+        <p className="text-[10px] text-[var(--color-muted)]">云端增强使用最新提示词；升级应用后请对旧图片重新分析以更新识别结果</p>
         <div className="grid grid-cols-2 gap-4">
           <Field label="图片最大边长 (px)">
             <input
@@ -250,8 +420,46 @@ export function SettingsPage() {
       <section className="mb-6 p-5 rounded-apple bg-[var(--color-card)] border border-[var(--color-border)] space-y-4">
         <h2 className="font-semibold">向量语义搜索</h2>
         <p className="text-xs text-[var(--color-muted)]">
-          使用 Embedding API（与上方共用 Key / Base URL），将图片详情转为向量，支持模糊语义搜索
+          将分析文本转为向量；可选择本地模型（零 token）或云端 Embedding API
         </p>
+        <Field label="向量提供方">
+          <select
+            value={form.embedding.provider}
+            onChange={(e) => updateEmbedding('provider', e.target.value)}
+            className="field-input"
+          >
+            <option value="local">本地（推荐）</option>
+            <option value="cloud">云端 API</option>
+          </select>
+        </Field>
+        {form.embedding.provider === 'local' ? (
+          <Field label="本地向量模型">
+            <select
+              value={form.embedding.localModelId}
+              onChange={(e) => updateEmbedding('localModelId', e.target.value)}
+              className="field-input"
+            >
+              {(modelRegistry?.embedding ?? []).map((m) => {
+                const st = localModelStatus?.items.find((i) => i.id === m.id && i.kind === 'embedding')
+                return (
+                  <option key={m.id} value={m.id}>
+                    {m.label} {st?.ready ? '（已就绪）' : '（未下载）'}
+                  </option>
+                )
+              })}
+            </select>
+          </Field>
+        ) : (
+          <Field label="云端 Embedding Model">
+            <input
+              type="text"
+              value={form.embedding.model}
+              onChange={(e) => updateEmbedding('model', e.target.value)}
+              placeholder="如 text-embedding-v3（DashScope）"
+              className="field-input"
+            />
+          </Field>
+        )}
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -268,15 +476,6 @@ export function SettingsPage() {
           />
           分析完成后自动建立向量
         </label>
-        <Field label="Embedding Model">
-          <input
-            type="text"
-            value={form.embedding.model}
-            onChange={(e) => updateEmbedding('model', e.target.value)}
-            placeholder="如 text-embedding-v3（DashScope）"
-            className="field-input"
-          />
-        </Field>
         <div className="grid grid-cols-2 gap-4">
           <Field label="最低相似度 (0~1)">
             <input

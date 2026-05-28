@@ -34,7 +34,7 @@ export class VectorSearchService {
     }
 
     const db = getDb()
-    const model = config.embedding.model
+    const model = embeddingClient.getModelName()
     const stats = db.prepare(
       'SELECT COUNT(*) as cnt FROM media_embeddings WHERE model_name IS NULL OR model_name = ?'
     ).get(model) as { cnt: number }

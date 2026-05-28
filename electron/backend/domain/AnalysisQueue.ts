@@ -1,19 +1,26 @@
 import { getDb } from '../db/DatabaseManager'
 import { configService } from '../services/ConfigService'
-import { imageAnalyzer } from '../infra/LLMClient'
 import { mediaRepository } from '../infra/FileScanner'
 import { upsertMediaFts } from './MediaFtsIndexer'
 import { parseAnalysisExtendedFields, toAnalysisFtsPayload } from './AnalysisPayloadMapper'
 import { embeddingService } from '../services/EmbeddingService'
-import type { AnalysisProgress, AnalysisResult, ImageAnalysisPayload } from '../../../shared/types'
+import { createImageAnalysisProvider, resolveAnalysisMode } from '../infra/analysis/AnalysisProviderFactory'
+import { buildAnalysisModelName } from './AnalysisModelName'
+import type { AnalysisMode, AnalysisProgress, AnalysisResult, ImageAnalysisPayload } from '../../../shared/types'
 
 type ProgressCallback = (progress: AnalysisProgress) => void
+
+interface QueuedJob {
+  mediaId: string
+  mode: AnalysisMode
+}
 
 export class AnalysisQueue {
   private running = false
   private stopRequested = false
   private listeners: ProgressCallback[] = []
   private processingItems = new Map<string, string>()
+  private enhanceQueue: QueuedJob[] = []
 
   onProgress(cb: ProgressCallback): () => void {
     this.listeners.push(cb)
@@ -47,6 +54,12 @@ export class AnalysisQueue {
       fileName: filePath.split(/[/\\]/).pop() ?? filePath
     }))
 
+    const config = configService.load()
+    const concurrency =
+      this.running && !this.stopRequested
+        ? Math.max(1, config.analysis.defaultMode === 'local' ? config.analysis.localConcurrency : config.llm.maxConcurrency)
+        : undefined
+
     return {
       pending,
       processing,
@@ -58,9 +71,7 @@ export class AnalysisQueue {
       completed,
       percent,
       currentFiles,
-      concurrency: this.running && !this.stopRequested
-        ? Math.max(1, configService.load().llm.maxConcurrency)
-        : undefined
+      concurrency
     }
   }
 
@@ -80,14 +91,56 @@ export class AnalysisQueue {
     this.emit()
   }
 
-  /** @deprecated 使用 stop */
   pause(): void {
     this.stop()
   }
 
-  async retryMedia(mediaId: string): Promise<void> {
+  async retryMedia(mediaId: string, mode?: AnalysisMode): Promise<void> {
     mediaRepository.setStatus(mediaId, 'pending', null)
+    if (mode === 'cloud') {
+      this.enqueueEnhance(mediaId)
+    }
     if (!this.running) await this.start()
+  }
+
+  async enhanceMedia(mediaId: string): Promise<void> {
+    const config = configService.load()
+    if (!config.llm.apiKey) {
+      throw new Error('请先在设置中配置 API Key 以使用云端增强分析')
+    }
+    mediaRepository.setStatus(mediaId, 'pending', null)
+    this.enqueueEnhance(mediaId)
+    if (!this.running) await this.start()
+  }
+
+  async enhanceBatch(mediaIds: string[]): Promise<number> {
+    const config = configService.load()
+    if (!config.llm.apiKey) {
+      throw new Error('请先在设置中配置 API Key 以使用云端增强分析')
+    }
+    let count = 0
+    for (const mediaId of mediaIds) {
+      mediaRepository.setStatus(mediaId, 'pending', null)
+      this.enqueueEnhance(mediaId)
+      count++
+    }
+    if (count > 0 && !this.running) await this.start()
+    return count
+  }
+
+  private enqueueEnhance(mediaId: string): void {
+    if (!this.enhanceQueue.some((j) => j.mediaId === mediaId)) {
+      this.enhanceQueue.push({ mediaId, mode: 'cloud' })
+    }
+  }
+
+  private dequeueMode(mediaId: string): AnalysisMode | undefined {
+    const idx = this.enhanceQueue.findIndex((j) => j.mediaId === mediaId)
+    if (idx >= 0) {
+      const job = this.enhanceQueue.splice(idx, 1)[0]
+      return job.mode
+    }
+    return undefined
   }
 
   async retryAllFailed(): Promise<number> {
@@ -101,6 +154,14 @@ export class AnalysisQueue {
     return rows.length
   }
 
+  private getMaxConcurrency(): number {
+    const config = configService.load()
+    if (config.analysis.defaultMode === 'local' && this.enhanceQueue.length === 0) {
+      return Math.max(1, Math.min(config.analysis.localConcurrency, 8))
+    }
+    return Math.max(1, Math.min(config.llm.maxConcurrency, 16))
+  }
+
   private async processLoop(): Promise<void> {
     const inFlight = new Set<Promise<void>>()
 
@@ -112,14 +173,14 @@ export class AnalysisQueue {
           continue
         }
 
-        const config = configService.load()
-        const maxConcurrency = Math.max(1, Math.min(config.llm.maxConcurrency, 16))
+        const maxConcurrency = this.getMaxConcurrency()
 
         while (inFlight.size < maxConcurrency && this.running && !this.stopRequested) {
           const item = mediaRepository.claimNextPending()
           if (!item) break
 
-          const task = this.processOne(item.id, item.file_path).finally(() => {
+          const queuedMode = this.dequeueMode(item.id)
+          const task = this.processOne(item.id, item.file_path, queuedMode).finally(() => {
             inFlight.delete(task)
           })
           inFlight.add(task)
@@ -157,7 +218,7 @@ export class AnalysisQueue {
     getDb().prepare(`UPDATE media_items SET analysis_status = 'pending' WHERE analysis_status = 'processing'`).run()
   }
 
-  private async processOne(mediaId: string, filePath: string): Promise<void> {
+  private async processOne(mediaId: string, filePath: string, forcedMode?: AnalysisMode): Promise<void> {
     const config = configService.load()
     this.processingItems.set(mediaId, filePath)
     this.emit()
@@ -167,9 +228,12 @@ export class AnalysisQueue {
       for (let attempt = 0; attempt <= config.llm.maxRetries; attempt++) {
         if (this.stopRequested) return
         try {
-          const { payload, promptVersion } = await imageAnalyzer.analyzeFile(filePath)
+          const mode = forcedMode ?? (await resolveAnalysisMode())
+          const provider = createImageAnalysisProvider(mode)
+          const { payload, promptVersion } = await provider.analyzeFile(filePath, mediaId)
           if (this.stopRequested) return
-          this.saveAnalysis(mediaId, payload, config.llm.model, promptVersion)
+          const modelName = buildAnalysisModelName(mode)
+          this.saveAnalysis(mediaId, payload, modelName, promptVersion)
           mediaRepository.setStatus(mediaId, 'done')
           embeddingService.scheduleIndex(mediaId)
           return

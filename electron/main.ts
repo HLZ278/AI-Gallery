@@ -6,6 +6,11 @@ import { registerIpcHandlers } from './ipc/handlers'
 import { closeDb } from './backend/db/DatabaseManager'
 import { lanServerService } from './backend/services/LanServerService'
 import { libraryWatcherService } from './backend/services/LibraryWatcherService'
+import { configService } from './backend/services/ConfigService'
+import { applyTransformersEnv } from './backend/infra/TransformersEnv'
+import { syncReadyMarkersFromCache } from './backend/services/LocalModelReady'
+import { localModelService } from './backend/services/LocalModelService'
+import { migrateModelsCacheFromLegacy } from './backend/services/ModelsCacheMigration'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -66,10 +71,15 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   if (process.platform === 'win32') {
     app.setAppUserModelId('com.yourpicture.app')
   }
+  await migrateModelsCacheFromLegacy()
+  configService.load()
+  localModelService.evictCaptionBackends()
+  syncReadyMarkersFromCache()
+  applyTransformersEnv().catch((err) => console.error('Transformers env init failed:', err))
   registerIpcHandlers()
   lanServerService.applyConfig().catch((err) => console.error('LAN server start failed:', err))
   libraryWatcherService.start().catch((err) => console.error('Library watcher start failed:', err))
