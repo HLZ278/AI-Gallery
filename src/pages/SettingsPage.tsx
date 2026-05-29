@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type {
   AppConfig,
+  ConfigRuntimeInfo,
   LocalModelStatus,
   LocalModelsRegistry,
   OllamaRuntimeStatus,
@@ -42,6 +43,7 @@ export function SettingsPage() {
   const [ollamaLiveStatus, setOllamaLiveStatus] = useState<OllamaRuntimeStatus | null>(null)
   const [ollamaStatus, setOllamaStatus] = useState<OllamaRuntimeStatus | null>(null)
   const [ollamaVisionCatalog, setOllamaVisionCatalog] = useState<OllamaVisionModelEntry[]>([])
+  const [runtimeInfo, setRuntimeInfo] = useState<ConfigRuntimeInfo | null>(null)
 
   const refreshEmbedStats = async () => {
     setEmbedStats(await window.api.embedding.getStats())
@@ -70,6 +72,7 @@ export function SettingsPage() {
     void refreshLocalModelStatus()
     window.api.localModel.getRegistry().then(setModelRegistry).catch(() => null)
     window.api.ollama.getVisionCatalog().then(setOllamaVisionCatalog).catch(() => null)
+    window.api.config.getRuntimeInfo().then(setRuntimeInfo).catch(() => null)
     const unsubDownload = window.api.localModel.onDownloadProgress((payload) => {
       setModelDownloadProgress(payload)
     })
@@ -85,6 +88,7 @@ export function SettingsPage() {
   if (!form) return <div className="p-6">加载中...</div>
 
   const isAmdInference = form.localModels?.inferenceDevice === 'amd'
+  const inferenceDeviceOptions = runtimeInfo?.inferenceDevices ?? []
 
   const updateLlm = (key: keyof AppConfig['llm'], value: string | number) => {
     setForm({ ...form, llm: { ...form.llm, [key]: value } })
@@ -367,9 +371,11 @@ export function SettingsPage() {
             }}
             className="field-input"
           >
-            <option value="wasm">纯 CPU（最兼容，速度较慢）</option>
-            <option value="cuda">CUDA（NVIDIA GPU，Linux）</option>
-            <option value="amd">AMD GPU（Ollama + Vulkan）</option>
+            {inferenceDeviceOptions.map((device) => (
+              <option key={device.id} value={device.id}>
+                {device.label}
+              </option>
+            ))}
           </select>
           {isAmdInference && (
             <OllamaSetupAction

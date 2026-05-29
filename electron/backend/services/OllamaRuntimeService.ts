@@ -195,12 +195,13 @@ export class OllamaRuntimeService {
     }
   }
 
-  private async startServe(): Promise<void> {
+  private async startServe(options?: { forceRestart?: boolean }): Promise<void> {
     const cfg = loadOllamaRuntimeConfig()
     const exe = this.getOllamaExePath()
     if (!existsSync(exe)) throw new Error('Ollama 未安装')
 
-    if (await this.isApiReachable()) {
+    const forceRestart = options?.forceRestart ?? false
+    if (!forceRestart && (await this.isApiReachable())) {
       this.emitStatus({
         phase: 'starting',
         progress: 98,
@@ -213,7 +214,11 @@ export class OllamaRuntimeService {
 
     await this.stopExistingOllama()
 
-    this.emitStatus({ phase: 'starting', progress: 97, message: '正在启动 Ollama（Vulkan）…' })
+    this.emitStatus({
+      phase: 'starting',
+      progress: 97,
+      message: forceRestart ? '正在重启 Ollama（Vulkan + 模型目录）…' : '正在启动 Ollama（Vulkan）…'
+    })
     const env = this.buildServeEnv()
     this.managedProcess = spawn(exe, ['serve'], {
       env,
@@ -249,7 +254,7 @@ export class OllamaRuntimeService {
     try {
       this.emitStatus({ phase: 'downloading_installer', progress: 0, message: '准备配置 Ollama…', error: undefined })
       await this.installOllama()
-      await this.startServe()
+      await this.startServe({ forceRestart: true })
       const visionModel = resolveCaptionOllamaModel()
       const modelReady = visionModel ? await this.isModelPulled(visionModel) : false
       this.emitStatus({

@@ -4,7 +4,7 @@ import { mediaRepository } from '../infra/FileScanner'
 import { upsertMediaFts } from './MediaFtsIndexer'
 import { parseAnalysisExtendedFields, toAnalysisFtsPayload } from './AnalysisPayloadMapper'
 import { embeddingService } from '../services/EmbeddingService'
-import { createImageAnalysisProvider, resolveAnalysisMode } from '../infra/analysis/AnalysisProviderFactory'
+import { createImageAnalysisProvider, resolveAnalysisModeForJob } from '../infra/analysis/AnalysisProviderFactory'
 import { buildAnalysisModelName } from './AnalysisModelName'
 import type { AnalysisMode, AnalysisProgress, AnalysisResult, ImageAnalysisPayload } from '../../../shared/types'
 
@@ -20,7 +20,7 @@ export class AnalysisQueue {
   private stopRequested = false
   private listeners: ProgressCallback[] = []
   private processingItems = new Map<string, string>()
-  private enhanceQueue: QueuedJob[] = []
+  private forcedModeQueue: QueuedJob[] = []
   private libraryFilter: string | null = null
 
   onProgress(cb: ProgressCallback): () => void {
@@ -99,8 +99,8 @@ export class AnalysisQueue {
 
   async retryMedia(mediaId: string, mode?: AnalysisMode): Promise<void> {
     mediaRepository.setStatus(mediaId, 'pending', null)
-    if (mode === 'cloud') {
-      this.enqueueEnhance(mediaId)
+    if (mode === 'cloud' || mode === 'local') {
+      this.enqueueForcedMode(mediaId, mode)
     }
     if (!this.running) await this.start()
   }
@@ -111,7 +111,7 @@ export class AnalysisQueue {
       throw new Error('请先在设置中配置 API Key 以使用云端增强分析')
     }
     mediaRepository.setStatus(mediaId, 'pending', null)
-    this.enqueueEnhance(mediaId)
+    this.enqueueForcedMode(mediaId, 'cloud')
     if (!this.running) await this.start()
   }
 
@@ -123,23 +123,23 @@ export class AnalysisQueue {
     let count = 0
     for (const mediaId of mediaIds) {
       mediaRepository.setStatus(mediaId, 'pending', null)
-      this.enqueueEnhance(mediaId)
+      this.enqueueForcedMode(mediaId, 'cloud')
       count++
     }
     if (count > 0 && !this.running) await this.start()
     return count
   }
 
-  private enqueueEnhance(mediaId: string): void {
-    if (!this.enhanceQueue.some((j) => j.mediaId === mediaId)) {
-      this.enhanceQueue.push({ mediaId, mode: 'cloud' })
+  private enqueueForcedMode(mediaId: string, mode: AnalysisMode): void {
+    if (!this.forcedModeQueue.some((j) => j.mediaId === mediaId)) {
+      this.forcedModeQueue.push({ mediaId, mode })
     }
   }
 
   private dequeueMode(mediaId: string): AnalysisMode | undefined {
-    const idx = this.enhanceQueue.findIndex((j) => j.mediaId === mediaId)
+    const idx = this.forcedModeQueue.findIndex((j) => j.mediaId === mediaId)
     if (idx >= 0) {
-      const job = this.enhanceQueue.splice(idx, 1)[0]
+      const job = this.forcedModeQueue.splice(idx, 1)[0]
       return job.mode
     }
     return undefined
@@ -158,7 +158,8 @@ export class AnalysisQueue {
 
   private getMaxConcurrency(): number {
     const config = configService.load()
-    if (config.analysis.defaultMode === 'local' && this.enhanceQueue.length === 0) {
+    const pendingCloud = this.forcedModeQueue.some((j) => j.mode === 'cloud')
+    if (config.analysis.defaultMode === 'local' && !pendingCloud) {
       return Math.max(1, Math.min(config.analysis.localConcurrency, 8))
     }
     return Math.max(1, Math.min(config.llm.maxConcurrency, 16))
@@ -231,7 +232,7 @@ export class AnalysisQueue {
       for (let attempt = 0; attempt <= config.llm.maxRetries; attempt++) {
         if (this.stopRequested) return
         try {
-          const mode = forcedMode ?? (await resolveAnalysisMode())
+          const mode = await resolveAnalysisModeForJob(forcedMode)
           const provider = createImageAnalysisProvider(mode)
           const { payload, promptVersion } = await provider.analyzeFile(filePath, mediaId)
           if (this.stopRequested) return

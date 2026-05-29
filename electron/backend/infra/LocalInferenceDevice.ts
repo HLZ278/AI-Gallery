@@ -11,6 +11,7 @@ export type ResolvedInferenceDevice = 'cpu' | 'cuda'
 interface InferenceDeviceMeta {
   labels: Record<ResolvedInferenceDevice, string>
   preferenceLabels?: Record<InferenceDevicePreference, string>
+  platformOptions?: Record<string, InferenceDevicePreference[]>
   hints: Record<string, string>
 }
 
@@ -55,6 +56,18 @@ export function inferenceDevicePreferenceLabel(preference: InferenceDevicePrefer
   const meta = loadDeviceMeta()
   const key = preference ?? 'wasm'
   return meta.preferenceLabels?.[key] ?? meta.labels[resolveInferenceDevicePreference(preference)] ?? key
+}
+
+export function listAvailableInferenceDevices(osPlatform: string = platform): InferenceDevicePreference[] {
+  const meta = loadDeviceMeta()
+  return meta.platformOptions?.[osPlatform] ?? ['wasm', 'cuda', 'amd']
+}
+
+export function isInferenceDeviceAvailable(
+  preference: InferenceDevicePreference,
+  osPlatform: string = platform
+): boolean {
+  return listAvailableInferenceDevices(osPlatform).includes(preference)
 }
 
 /** 按用户配置决定尝试的设备（无静默回退） */

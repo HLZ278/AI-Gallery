@@ -9,6 +9,7 @@ const api = {
     get: (): Promise<AppConfig> => ipcRenderer.invoke('config:get'),
     save: (config: AppConfig): Promise<void> => ipcRenderer.invoke('config:save', config),
     getDefaults: (): Promise<AppConfig> => ipcRenderer.invoke('config:getDefaults'),
+    getRuntimeInfo: () => ipcRenderer.invoke('config:getRuntimeInfo'),
     testLlm: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('config:testLlm')
   },
   library: {

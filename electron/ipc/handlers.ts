@@ -18,6 +18,10 @@ import { listOllamaVisionCatalog } from '../backend/services/CaptionRuntime'
 import { localInferenceBridge } from '../backend/services/LocalInferenceBridge'
 import { resetEmbeddingProviderCache } from '../backend/infra/embedding/EmbeddingProviderFactory'
 import { resetTransformersEnv } from '../backend/infra/TransformersEnv'
+import {
+  inferenceDevicePreferenceLabel,
+  listAvailableInferenceDevices
+} from '../backend/infra/LocalInferenceDevice'
 import type { AppConfig, ImageEditRequest, ImageEditSession, ImageGenRequest, ImageGenSession, MediaType, SearchQuery } from '../../shared/types'
 
 export function registerIpcHandlers(): void {
@@ -34,6 +38,13 @@ export function registerIpcHandlers(): void {
     await lanServerService.applyConfig()
   })
   ipcMain.handle('config:getDefaults', () => configService.getDefaults())
+  ipcMain.handle('config:getRuntimeInfo', () => ({
+    platform: process.platform,
+    inferenceDevices: listAvailableInferenceDevices(process.platform).map((id) => ({
+      id,
+      label: inferenceDevicePreferenceLabel(id)
+    }))
+  }))
   ipcMain.handle('config:testLlm', () => testLlmConnection())
 
   ipcMain.handle('library:list', () => libraryService.list())

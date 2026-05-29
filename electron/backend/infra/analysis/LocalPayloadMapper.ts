@@ -1,8 +1,7 @@
 import type { ImageAnalysisPayload } from '../../../../shared/types'
+import { promptBuilder } from '../../domain/PromptBuilder'
 import { tryParseCaptionToPayload, stripMarkdownFence } from './AnalysisPayloadMapper'
 import { sanitizeTextField } from './AnalysisTextSanitizer'
-
-const LOCAL_PROMPT_VERSION = 'local-v1'
 
 export function mapLocalCaptionToPayload(params: {
   caption: string
@@ -46,5 +45,5 @@ export function mergeFrameCaptions(captions: string[]): string {
 }
 
 export function getLocalPromptVersion(): string {
-  return LOCAL_PROMPT_VERSION
+  return promptBuilder.getImagePromptVersion()
 }

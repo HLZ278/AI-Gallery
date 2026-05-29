@@ -425,6 +425,16 @@ export interface AppAboutInfo {
   copyright: string
 }
 
+export interface InferenceDeviceOption {
+  id: InferenceDevicePreference
+  label: string
+}
+
+export interface ConfigRuntimeInfo {
+  platform: string
+  inferenceDevices: InferenceDeviceOption[]
+}
+
 export interface IpcApi {
   about: {
     getInfo: () => Promise<AppAboutInfo>
@@ -433,6 +443,7 @@ export interface IpcApi {
     get: () => Promise<AppConfig>
     save: (config: AppConfig) => Promise<void>
     getDefaults: () => Promise<AppConfig>
+    getRuntimeInfo: () => Promise<ConfigRuntimeInfo>
     testLlm: () => Promise<{ ok: boolean; message: string }>
   }
   library: {

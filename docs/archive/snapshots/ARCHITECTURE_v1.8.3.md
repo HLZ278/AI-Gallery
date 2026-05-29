@@ -95,6 +95,9 @@ createImageAnalysisProvider(mode)
     → extractJsonObject（完整 / 截断 / 字段级容错）
     → sanitizeAnalysisPayload（analysis-limits.json）
     → analysis_results + media_fts
+
+视频/GIF（本地）：逐帧 caption → FramePayloadMerger 合并各帧 JSON 字段
+强制分析模式：AnalysisQueue.forcedModeQueue（local 重试 / cloud 增强）
 ```
 
 日志前缀：`[Ollama]`、`[AnalysisParse]`
@@ -106,7 +109,7 @@ createImageAnalysisProvider(mode)
 | `config/default.config.json` | 默认 analysis / llm / localModels |
 | `config/local-models.json` | ONNX 与 Ollama 模型 registry |
 | `config/ollama-runtime.json` | Ollama 安装、Vulkan 环境、视觉 catalog |
-| `config/inference-devices.json` | 设备标签与错误提示 |
+| `config/inference-devices.json` | 设备标签、错误提示、**platformOptions**（按 OS 显示 wasm/cuda/amd） |
 | `config/analysis-limits.json` | OCR/文本字段长度上限 |
 | `prompts/image_analysis_v1.1.json` | 云端 + 本地 caption 提示词 |
 

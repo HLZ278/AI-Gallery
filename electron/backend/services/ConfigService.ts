@@ -1,7 +1,9 @@
 import { app } from 'electron'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'fs'
 import { join } from 'path'
+import { platform } from 'process'
 import type { AppConfig } from '../../../shared/types'
+import { isInferenceDeviceAvailable } from '../infra/LocalInferenceDevice'
 import { getDefaultOllamaVisionModelTag, resolveVisionModelTag } from '../infra/OllamaRuntimeConfig'
 import { loadLocalModelsRegistry } from './LocalModelRegistry'
 
@@ -69,6 +71,9 @@ function migrateAppConfig(config: AppConfig): AppConfig {
   }
   const legacyDevice = config.localModels.inferenceDevice as string
   if (legacyDevice === 'auto' || legacyDevice === 'dml') {
+    config.localModels.inferenceDevice = 'wasm'
+  }
+  if (!isInferenceDeviceAvailable(config.localModels.inferenceDevice, platform)) {
     config.localModels.inferenceDevice = 'wasm'
   }
   if (!config.localModels.ollamaVisionModelTag?.trim()) {

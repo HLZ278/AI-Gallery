@@ -17,6 +17,43 @@ export function createImageAnalysisProvider(mode: AnalysisMode): IImageAnalysisP
   return localImageAnalysisProvider
 }
 
+export async function resolveAnalysisModeForJob(forcedMode?: AnalysisMode): Promise<AnalysisMode> {
+  if (forcedMode === 'cloud') {
+    const config = configService.load()
+    if (!config.llm.apiKey?.trim()) {
+      throw new Error('请先在设置中配置 API Key 以使用云端分析')
+    }
+    return 'cloud'
+  }
+
+  if (forcedMode === 'local') {
+    return assertLocalAnalysisReady()
+  }
+
+  return resolveAnalysisMode()
+}
+
+async function assertLocalAnalysisReady(): Promise<'local'> {
+  const config = configService.load()
+  const modelId = config.analysis.localCaptionModelId
+
+  if (usesOllamaCaption(config.localModels.inferenceDevice)) {
+    const status = await ollamaRuntimeService.getStatus()
+    if (status.installed && status.running && status.modelReady) return 'local'
+    throw new Error(
+      `Ollama 视觉模型未就绪（${status.visionModel ?? '未选择'}）。请先配置 Ollama 运行环境，再选择并下载视觉模型。`
+    )
+  }
+
+  syncReadyMarkersFromCache()
+  const ready = await localModelService.isCaptionModelReady()
+  if (ready) return 'local'
+
+  throw new Error(
+    `本地描述模型未就绪（当前配置: ${modelId}）。请在设置中下载 Qwen 视觉模型与向量模型。`
+  )
+}
+
 export async function resolveAnalysisMode(requested?: AnalysisMode): Promise<AnalysisMode> {
   const config = configService.load()
   const mode = requested ?? config.analysis.defaultMode

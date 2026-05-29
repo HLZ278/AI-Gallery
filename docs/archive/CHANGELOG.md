@@ -24,6 +24,11 @@
 - `qwen3-vl:2b` Thinking 版导致分析无进展/空内容（改 Instruct + `think:false`）
 - 单图 Ollama 请求未缩放原图导致极慢
 - 详情面板 OCR/描述过长撑爆 UI
+- **Ollama Vulkan**：`OLLAMA_GPU_OVERIDE` 更正为 `OLLAMA_VULKAN=1`；setup 强制重启以应用模型目录
+- **本地视频/GIF**：`FramePayloadMerger` 逐帧 JSON 合并，修复多段 JSON 拼接解析失败
+- **本地重新分析**：强制 `local` 模式，不再静默回退云端
+- **推理设备**：`platformOptions` 按 OS 显示选项（Win 隐藏 CUDA）
+- **设置保存**：补回 `resetTransformersEnv` 导入
 
 ## [1.8.2] - 2026-05-29
 

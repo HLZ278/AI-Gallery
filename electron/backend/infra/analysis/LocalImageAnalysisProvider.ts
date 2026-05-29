@@ -4,7 +4,8 @@ import { findCaptionModel } from '../../services/LocalModelRegistry'
 import { localModelService } from '../../services/LocalModelService'
 import { mediaPreprocessor } from '../MediaPreprocessor'
 import type { IImageAnalysisProvider, AnalyzeFileResult } from './IImageAnalysisProvider'
-import { getLocalPromptVersion, mapLocalCaptionToPayload, mergeFrameCaptions } from './LocalPayloadMapper'
+import { getLocalPromptVersion, mapLocalCaptionToPayload } from './LocalPayloadMapper'
+import { mergeFrameCaptionsToPayload } from './FramePayloadMerger'
 
 export class LocalImageAnalysisProvider implements IImageAnalysisProvider {
   async analyzeFile(filePath: string, mediaId?: string): Promise<AnalyzeFileResult> {
@@ -33,12 +34,13 @@ export class LocalImageAnalysisProvider implements IImageAnalysisProvider {
       const colors = await mediaPreprocessor.extractDominantColors(buffer)
       allColors.push(...colors)
     }
-    const rawMerged = await localModelService.captionImages(prepared.buffers, modelId)
-    const mergedCaption = mergeFrameCaptions(rawMerged.split('\n').filter(Boolean))
+    const frameCaptions = (await localModelService.captionImages(prepared.buffers, modelId))
+      .split('\n')
+      .filter(Boolean)
     const uniqueColors = [...new Set(allColors)].slice(0, 5)
     return {
-      payload: mapLocalCaptionToPayload({
-        caption: mergedCaption,
+      payload: mergeFrameCaptionsToPayload({
+        frameCaptions,
         colors: uniqueColors,
         geoText
       }),

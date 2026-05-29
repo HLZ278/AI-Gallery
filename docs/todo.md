@@ -18,6 +18,11 @@
 - [x] 移除 DirectML/auto；GPU 失败显式报错
 - [x] JSON/OCR 解析增强、analysis-limits 配置
 - [x] 文档 ARCHITECTURE_v1.8.3、CHANGELOG、USER_GUIDE 同步
+- [x] 修复 OLLAMA_VULKAN 环境变量、Ollama 配置时强制重启
+- [x] 本地视频/GIF 逐帧 JSON 字段合并（FramePayloadMerger）
+- [x] 「本地重新分析」强制 local，不静默回退云端
+- [x] 推理设备按平台过滤（Windows 隐藏 CUDA）
+- [x] 本地 promptVersion 对齐 image_analysis 版本号
 
 ## v1.8.2 已完成（2026-05-29）
 

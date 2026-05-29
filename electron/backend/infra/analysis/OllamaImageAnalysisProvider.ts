@@ -7,7 +7,8 @@ import { mediaPreprocessor } from '../MediaPreprocessor'
 import { resolveLocalCaptionPrompt } from './LocalCaptionPrompt'
 import { ollamaChat } from './OllamaCaptionClient'
 import type { IImageAnalysisProvider, AnalyzeFileResult } from './IImageAnalysisProvider'
-import { getLocalPromptVersion, mapLocalCaptionToPayload, mergeFrameCaptions } from './LocalPayloadMapper'
+import { getLocalPromptVersion, mapLocalCaptionToPayload } from './LocalPayloadMapper'
+import { mergeFrameCaptionsToPayload } from './FramePayloadMerger'
 
 export class OllamaImageAnalysisProvider implements IImageAnalysisProvider {
   async analyzeFile(filePath: string, mediaId?: string): Promise<AnalyzeFileResult> {
@@ -67,11 +68,10 @@ export class OllamaImageAnalysisProvider implements IImageAnalysisProvider {
       captions.push(content)
     }
 
-    const mergedCaption = mergeFrameCaptions(captions)
     const uniqueColors = [...new Set(allColors)].slice(0, 5)
     return {
-      payload: mapLocalCaptionToPayload({
-        caption: mergedCaption,
+      payload: mergeFrameCaptionsToPayload({
+        frameCaptions: captions,
         colors: uniqueColors,
         geoText
       }),

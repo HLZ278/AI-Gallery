@@ -2,12 +2,17 @@
   "labels": {
     "cpu": "纯 CPU",
     "cuda": "CUDA（NVIDIA GPU）",
-    "amd": "AMD GPU（Ollama + Vulkan）"
+    "amd": "Ollama + Vulkan（AMD / Intel GPU）"
   },
   "preferenceLabels": {
     "wasm": "纯 CPU",
-    "cuda": "CUDA（NVIDIA GPU）",
-    "amd": "AMD GPU（Ollama + Vulkan）"
+    "cuda": "CUDA（NVIDIA GPU，Linux）",
+    "amd": "Ollama + Vulkan（Windows AMD / Intel GPU）"
+  },
+  "platformOptions": {
+    "win32": ["wasm", "amd"],
+    "linux": ["wasm", "cuda"],
+    "darwin": ["wasm", "cuda"]
   },
   "hints": {
     "cuda_unsupported_platform": "当前系统不支持 CUDA。Windows 请改用纯 CPU；Linux 需安装 CUDA 12 运行时。",
