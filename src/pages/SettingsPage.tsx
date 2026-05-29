@@ -4,6 +4,7 @@ import { toast } from '../store/toastStore'
 import { confirmAction } from '../store/confirmStore'
 import { useAppStore } from '../store/appStore'
 import { resolveTheme } from '../utils/theme'
+import { ModelDownloadAction } from '../components/ModelDownloadAction'
 
 export function SettingsPage() {
   const config = useAppStore((s) => s.config)
@@ -21,6 +22,9 @@ export function SettingsPage() {
   const [localModelStatus, setLocalModelStatus] = useState<LocalModelStatus | null>(null)
   const [modelRegistry, setModelRegistry] = useState<LocalModelsRegistry | null>(null)
   const [modelDownloadBusy, setModelDownloadBusy] = useState(false)
+  const [modelDownloadProgress, setModelDownloadProgress] = useState<{ modelId: string; progress: number } | null>(
+    null
+  )
   const [modelMsg, setModelMsg] = useState('')
   const [embedBusy, setEmbedBusy] = useState(false)
   const [embedMsg, setEmbedMsg] = useState('')
@@ -45,8 +49,8 @@ export function SettingsPage() {
     void refreshEmbedStats()
     void refreshLocalModelStatus()
     window.api.localModel.getRegistry().then(setModelRegistry).catch(() => null)
-    const unsub = window.api.localModel.onDownloadProgress(() => {
-      void refreshLocalModelStatus()
+    const unsub = window.api.localModel.onDownloadProgress((payload) => {
+      setModelDownloadProgress(payload)
     })
     return unsub
   }, [config])
@@ -126,8 +130,10 @@ export function SettingsPage() {
   const handleDownloadModel = async (modelId: string, kind: 'caption' | 'embedding') => {
     setModelDownloadBusy(true)
     setModelMsg('')
+    setModelDownloadProgress({ modelId, progress: 0 })
     try {
       await window.api.localModel.download(modelId, kind)
+      setModelDownloadProgress({ modelId, progress: 100 })
       setModelMsg('模型下载完成')
       await refreshLocalModelStatus()
       toast('模型下载完成', 'success')
@@ -137,8 +143,15 @@ export function SettingsPage() {
       toast(msg, 'error')
     } finally {
       setModelDownloadBusy(false)
+      setModelDownloadProgress(null)
     }
   }
+
+  const findModelStatus = (modelId: string, kind: 'caption' | 'embedding') =>
+    localModelStatus?.items.find((i) => i.id === modelId && i.kind === kind)
+
+  const selectedCaptionModel = modelRegistry?.caption.find((m) => m.id === form?.analysis.localCaptionModelId)
+  const selectedEmbeddingModel = modelRegistry?.embedding.find((m) => m.id === form?.embedding.localModelId)
 
   const handleSave = async () => {
     await window.api.config.save(form)
@@ -302,15 +315,25 @@ export function SettingsPage() {
               )
             })}
           </select>
+          {selectedCaptionModel && (
+            <ModelDownloadAction
+              modelId={selectedCaptionModel.id}
+              kind="caption"
+              label={selectedCaptionModel.label}
+              estimatedSizeMb={selectedCaptionModel.estimatedSizeMb}
+              status={findModelStatus(selectedCaptionModel.id, 'caption')}
+              liveProgress={modelDownloadProgress}
+              busy={modelDownloadBusy}
+              onDownload={(id, kind) => void handleDownloadModel(id, kind)}
+            />
+          )}
         </Field>
         <Field label="本地推理设备">
           <select
-            value={form.localModels?.inferenceDevice ?? 'auto'}
+            value={form.localModels?.inferenceDevice ?? 'wasm'}
             onChange={(e) => updateLocalModels('inferenceDevice', e.target.value)}
             className="field-input"
           >
-            <option value="auto">自动（Windows 优先 DirectML / AMD·Intel GPU，失败回退 CPU）</option>
-            <option value="dml">DirectML（AMD / Intel 显卡，失败回退 CPU）</option>
             <option value="wasm">纯 CPU（最兼容，速度较慢）</option>
             <option value="cuda">CUDA（NVIDIA GPU）</option>
           </select>
@@ -334,29 +357,12 @@ export function SettingsPage() {
           本地模型未就绪时自动回退云端分析（需 API Key，推荐开启）
         </label>
         {localModelStatus && (
-          <div className="text-xs text-[var(--color-muted)] space-y-2">
+          <div className="text-xs text-[var(--color-muted)] space-y-1 pt-1 border-t border-[var(--color-border)]">
             <p>模型目录：{localModelStatus.modelsDir}</p>
             <p>缓存约 {localModelStatus.cacheSizeMb} MB</p>
             {!localModelStatus.allReady && (
               <p className="text-orange-500">部分模型未下载，本地分析/向量可能不可用</p>
             )}
-            <div className="flex flex-wrap gap-2">
-              {localModelStatus.items.map((item) => (
-                <button
-                  key={`${item.kind}-${item.id}`}
-                  type="button"
-                  disabled={modelDownloadBusy || item.ready || item.downloading}
-                  onClick={() => void handleDownloadModel(item.id, item.kind)}
-                  className="px-3 py-1.5 rounded-apple-sm border border-[var(--color-border)] text-[11px] disabled:opacity-50"
-                >
-                  {item.ready
-                    ? `${item.label} ✓`
-                    : item.downloading
-                      ? `${item.label} ${item.progress ?? 0}%`
-                      : `下载 ${item.label}`}
-                </button>
-              ))}
-            </div>
           </div>
         )}
         {modelMsg && <p className="text-xs text-[var(--color-accent)]">{modelMsg}</p>}
@@ -450,6 +456,18 @@ export function SettingsPage() {
                 )
               })}
             </select>
+            {selectedEmbeddingModel && (
+              <ModelDownloadAction
+                modelId={selectedEmbeddingModel.id}
+                kind="embedding"
+                label={selectedEmbeddingModel.label}
+                estimatedSizeMb={selectedEmbeddingModel.estimatedSizeMb}
+                status={findModelStatus(selectedEmbeddingModel.id, 'embedding')}
+                liveProgress={modelDownloadProgress}
+                busy={modelDownloadBusy}
+                onDownload={(id, kind) => void handleDownloadModel(id, kind)}
+              />
+            )}
           </Field>
         ) : (
           <Field label="云端 Embedding Model">

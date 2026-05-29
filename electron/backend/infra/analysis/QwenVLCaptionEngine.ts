@@ -2,10 +2,11 @@ import { getActiveConfig } from '../ActiveConfig'
 import { getModelsCacheDir } from '../../services/LocalModelRegistry'
 import { applyTransformersEnv } from '../TransformersEnv'
 import {
-  inferenceDeviceFallbackOrder,
-  isDmlRuntimeInferenceError,
+  buildInferenceDeviceLoadError,
+  buildInferenceDeviceRuntimeError,
+  inferenceDeviceCandidates,
+  isGpuRuntimeInferenceError,
   logInferenceDevice,
-  resolveInferenceDevicePreference,
   toTransformersOnnxDevice,
   type ResolvedInferenceDevice
 } from '../LocalInferenceDevice'
@@ -48,16 +49,14 @@ export class QwenVLCaptionEngine {
 
   async load(
     entry: LocalModelEntry,
-    progress_callback?: (info: { progress?: number; status?: string; file?: string }) => void,
-    forcePrimaryDevice?: ResolvedInferenceDevice
+    progress_callback?: (info: { progress?: number; status?: string; file?: string }) => void
   ): Promise<void> {
     if (!isQwenVLPipeline(entry.pipeline)) {
       throw new Error(`不支持的 Qwen VL pipeline: ${entry.pipeline}`)
     }
     const pipeline = entry.pipeline
-    const config = getActiveConfig()
-    const preference = forcePrimaryDevice ?? resolveInferenceDevicePreference(config.localModels.inferenceDevice)
-    const candidates = inferenceDeviceFallbackOrder(preference)
+    const preference = getActiveConfig().localModels.inferenceDevice
+    const candidates = inferenceDeviceCandidates(preference)
     const dtype = entry.dtype ?? DEFAULT_QWEN_VL_DTYPE
     this.pipeline = pipeline
     this.imageEdge = entry.imageEdge ?? DEFAULT_IMAGE_EDGE
@@ -65,7 +64,9 @@ export class QwenVLCaptionEngine {
     this.lastEntry = entry
 
     let lastError: unknown
+    let lastDevice: ResolvedInferenceDevice = 'cpu'
     for (const device of candidates) {
+      lastDevice = device
       const loadKey = this.buildLoadKey(entry.hfRepo, pipeline, device)
       if (this.loadedKey === loadKey && this.model) return
 
@@ -86,18 +87,17 @@ export class QwenVLCaptionEngine {
         return
       } catch (err) {
         lastError = err
-        logInferenceDevice('load failed, try fallback', {
+        logInferenceDevice('load failed', {
           device,
           error: err instanceof Error ? err.message : String(err)
         })
         this.processor = null
         this.model = null
         this.loadedKey = null
+        throw buildInferenceDeviceLoadError(preference, device, err)
       }
     }
-    throw lastError instanceof Error
-      ? lastError
-      : new Error(`Qwen VL 模型加载失败: ${String(lastError)}`)
+    throw buildInferenceDeviceLoadError(preference, lastDevice, lastError)
   }
 
   private async prepareImage(image: unknown): Promise<unknown> {
@@ -157,30 +157,17 @@ export class QwenVLCaptionEngine {
       throw new Error('Qwen VL 分析提示词为空')
     }
 
+    const preference = getActiveConfig().localModels.inferenceDevice
     try {
       return await this.runCaption(image, instruction)
     } catch (err) {
-      const needsCpuFallback =
-        this.resolvedDevice !== 'cpu' && isDmlRuntimeInferenceError(err) && this.lastEntry
-      if (!needsCpuFallback) throw err
-
-      const entry = this.lastEntry
-      if (!entry) throw err
-
-      logInferenceDevice('caption failed on GPU provider, reload cpu', {
-        device: this.resolvedDevice,
-        error: err instanceof Error ? err.message : String(err)
-      })
-      this.clearLoadedModels()
-      await this.load(entry, undefined, 'cpu')
-      if (!this.model || !this.processor) {
-        throw new Error('Qwen VL CPU 回退加载失败')
+      if (this.resolvedDevice !== 'cpu' && isGpuRuntimeInferenceError(err)) {
+        throw buildInferenceDeviceRuntimeError(preference, this.resolvedDevice, err)
       }
-      return await this.runCaption(image, instruction)
+      throw err
     }
   }
 
-  /** 仅卸载 ONNX 实例，保留 lastEntry 供设备回退重载 */
   private clearLoadedModels(): void {
     this.processor = null
     this.model = null

@@ -1,0 +1,11 @@
+{
+  "labels": {
+    "cpu": "纯 CPU",
+    "cuda": "CUDA（NVIDIA GPU）"
+  },
+  "hints": {
+    "cuda_unsupported_platform": "当前系统不支持 CUDA。Windows 请改用纯 CPU；Linux 需安装 CUDA 12 运行时。",
+    "cuda_load_failed": "请确认已安装 NVIDIA 驱动与 CUDA 12，或在设置中改为纯 CPU。",
+    "explicit_no_fallback": "已禁用自动回退 CPU。请修正推理设备设置后重试分析。"
+  }
+}

@@ -7,10 +7,13 @@ import { closeDb } from './backend/db/DatabaseManager'
 import { lanServerService } from './backend/services/LanServerService'
 import { libraryWatcherService } from './backend/services/LibraryWatcherService'
 import { configService } from './backend/services/ConfigService'
+import { setMainConfigLoader } from './backend/infra/ActiveConfig'
 import { syncReadyMarkersFromCache } from './backend/services/LocalModelReady'
 import { localInferenceBridge } from './backend/services/LocalInferenceBridge'
 import { localModelService } from './backend/services/LocalModelService'
 import { migrateModelsCacheFromLegacy } from './backend/services/ModelsCacheMigration'
+
+setMainConfigLoader(() => configService.load())
 
 let mainWindow: BrowserWindow | null = null
 

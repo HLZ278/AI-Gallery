@@ -91,29 +91,29 @@ export class LocalModelService {
     const items: LocalModelStatusItem[] = []
 
     for (const m of registry.caption) {
-      const selected = m.id === config.analysis.localCaptionModelId
+      const isDownloading = this.downloading?.kind === 'caption' && this.downloading.modelId === m.id
       items.push({
         id: m.id,
         label: m.label,
         kind: 'caption',
         ready: this.isModelCached(m.id, m.hfRepo),
-        downloading: this.downloading?.kind === 'caption' && this.downloading.modelId === m.id,
-        progress: selected && this.downloading?.modelId === m.id ? this.downloadProgress : undefined,
-        error: selected ? (this.downloadError ?? undefined) : undefined,
+        downloading: isDownloading,
+        progress: isDownloading ? this.downloadProgress : undefined,
+        error: isDownloading ? (this.downloadError ?? undefined) : undefined,
         estimatedSizeMb: m.estimatedSizeMb
       })
     }
 
     for (const m of registry.embedding) {
-      const selected = m.id === config.embedding.localModelId
+      const isDownloading = this.downloading?.kind === 'embedding' && this.downloading.modelId === m.id
       items.push({
         id: m.id,
         label: m.label,
         kind: 'embedding',
         ready: this.isModelCached(m.id, m.hfRepo),
-        downloading: this.downloading?.kind === 'embedding' && this.downloading.modelId === m.id,
-        progress: selected && this.downloading?.modelId === m.id ? this.downloadProgress : undefined,
-        error: selected ? (this.downloadError ?? undefined) : undefined,
+        downloading: isDownloading,
+        progress: isDownloading ? this.downloadProgress : undefined,
+        error: isDownloading ? (this.downloadError ?? undefined) : undefined,
         estimatedSizeMb: m.estimatedSizeMb
       })
     }

@@ -59,11 +59,15 @@ function migrateAppConfig(config: AppConfig): AppConfig {
       remotePathTemplate: '',
       hfToken: '',
       ignoreEnvHfToken: true,
-      inferenceDevice: 'auto'
+      inferenceDevice: 'wasm'
     }
   }
   if (!config.localModels.inferenceDevice) {
-    config.localModels.inferenceDevice = 'auto'
+    config.localModels.inferenceDevice = 'wasm'
+  }
+  const legacyDevice = config.localModels.inferenceDevice as string
+  if (legacyDevice === 'auto' || legacyDevice === 'dml') {
+    config.localModels.inferenceDevice = 'wasm'
   }
   return config
 }

@@ -6,7 +6,7 @@ export type AnalysisMode = 'local' | 'cloud'
 
 export type EmbeddingProviderType = 'local' | 'cloud'
 
-export type InferenceDevicePreference = 'auto' | 'wasm' | 'cuda' | 'dml'
+export type InferenceDevicePreference = 'wasm' | 'cuda'
 
 export interface LocalModelDtypeConfig {
   embed_tokens?: string
@@ -91,7 +91,7 @@ export interface AppConfig {
     hfToken: string
     /** 为 true 时忽略系统环境变量中的 HF_TOKEN，避免无效 token 导致 401 */
     ignoreEnvHfToken: boolean
-    /** auto：Windows 优先 DirectML（AMD/Intel GPU）；wasm：纯 CPU；cuda：NVIDIA；dml：强制 DirectML，失败回退 CPU */
+    /** wasm：纯 CPU；cuda：NVIDIA GPU（仅 Linux 预构建支持） */
     inferenceDevice: InferenceDevicePreference
   }
   embedding: {

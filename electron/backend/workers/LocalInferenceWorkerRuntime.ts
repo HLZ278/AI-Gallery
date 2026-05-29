@@ -10,8 +10,9 @@ import {
   restoreHfTokenAfterDownload
 } from '../infra/TransformersEnv'
 import {
-  inferenceDeviceFallbackOrder,
-  isDmlRuntimeInferenceError,
+  buildInferenceDeviceLoadError,
+  inferenceDeviceCandidates,
+  isGpuRuntimeInferenceError,
   logInferenceDevice,
   resolveInferenceDevicePreference,
   toTransformersOnnxDevice
@@ -153,7 +154,12 @@ export class LocalInferenceWorkerRuntime {
       return await backend.engine.caption(image, backend.prompt)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (msg.includes('未加载') || msg.includes('回退加载失败') || isDmlRuntimeInferenceError(err)) {
+      if (
+        msg.includes('未加载') ||
+        msg.includes('回退加载失败') ||
+        msg.includes('本地推理设备') ||
+        isGpuRuntimeInferenceError(err)
+      ) {
         this.captionBackends.clear()
       }
       throw err
@@ -263,14 +269,16 @@ export class LocalInferenceWorkerRuntime {
     const entry = findEmbeddingModel(modelId)
     if (!entry) throw new Error(`未找到向量模型: ${modelId}`)
 
-    const preference = resolveInferenceDevicePreference(getActiveConfig().localModels.inferenceDevice)
-    const candidates = inferenceDeviceFallbackOrder(preference)
+    const preference = getActiveConfig().localModels.inferenceDevice
+    const candidates = inferenceDeviceCandidates(preference)
     await applyTransformersEnv()
     const { pipeline } = await import('@huggingface/transformers')
     const cacheDir = getModelsCacheDir()
 
     let lastError: unknown
+    let lastDevice = resolveInferenceDevicePreference(preference)
     for (const device of candidates) {
+      lastDevice = device
       const onnxDevice = toTransformersOnnxDevice(device)
       try {
         logInferenceDevice('loading embedding pipeline', { modelId, device: onnxDevice })
@@ -283,16 +291,15 @@ export class LocalInferenceWorkerRuntime {
         return pipe
       } catch (err) {
         lastError = err
-        logInferenceDevice('embedding load failed, try fallback', {
+        logInferenceDevice('embedding load failed', {
           modelId,
           device: onnxDevice,
           error: err instanceof Error ? err.message : String(err)
         })
+        throw buildInferenceDeviceLoadError(preference, device, err)
       }
     }
-    throw lastError instanceof Error
-      ? lastError
-      : new Error(`向量模型加载失败: ${String(lastError)}`)
+    throw buildInferenceDeviceLoadError(preference, lastDevice, lastError)
   }
 
   shutdown(): void {

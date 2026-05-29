@@ -1,47 +1,103 @@
+import { existsSync, readFileSync } from 'fs'
+import { join } from 'path'
 import { platform } from 'process'
 import type { InferenceDevicePreference } from '../../../shared/types'
 
 const LOG_PREFIX = '[LocalInference]'
 
-/** 应用内解析后的推理设备（Node 环境会映射为 ONNX 的 cpu / cuda / dml） */
-export type ResolvedInferenceDevice = 'cpu' | 'cuda' | 'dml'
+/** 应用内解析后的推理设备（Node 环境映射为 ONNX 的 cpu / cuda） */
+export type ResolvedInferenceDevice = 'cpu' | 'cuda'
 
-/**
- * 传给 @huggingface/transformers 的 device。
- * Node/Electron 仅支持 cpu、cuda、dml，不支持 wasm。
- */
-export function toTransformersOnnxDevice(device: ResolvedInferenceDevice): 'cpu' | 'cuda' | 'dml' {
+interface InferenceDeviceMeta {
+  labels: Record<ResolvedInferenceDevice, string>
+  hints: Record<string, string>
+}
+
+let deviceMeta: InferenceDeviceMeta | null = null
+
+function resolveConfigPath(filename: string): string {
+  const paths = [
+    join(process.env.PICTURESEARCH_APP_ROOT ?? process.cwd(), 'config', filename),
+    join(__dirname, '../../../config', filename),
+    join(process.cwd(), 'config', filename)
+  ]
+  for (const p of paths) {
+    if (existsSync(p)) return p
+  }
+  throw new Error(`Config file not found: ${filename}`)
+}
+
+function loadDeviceMeta(): InferenceDeviceMeta {
+  if (deviceMeta) return deviceMeta
+  const raw = JSON.parse(readFileSync(resolveConfigPath('inference-devices.json'), 'utf-8')) as InferenceDeviceMeta
+  deviceMeta = raw
+  return raw
+}
+
+/** 传给 @huggingface/transformers 的 device（wasm 配置项映射为 cpu） */
+export function toTransformersOnnxDevice(device: ResolvedInferenceDevice): 'cpu' | 'cuda' {
   return device
 }
 
-/** 解析用户配置；auto 在 Windows 优先 DirectML（AMD/Intel 独显/核显），失败时由加载逻辑回退 CPU */
 export function resolveInferenceDevicePreference(
   preference: InferenceDevicePreference | undefined
 ): ResolvedInferenceDevice {
-  switch (preference) {
-    case 'cuda':
-      return 'cuda'
-    case 'dml':
-      return 'dml'
-    case 'auto':
-      if (platform === 'win32') return 'dml'
-      if (platform === 'linux') return 'cuda'
-      return 'cpu'
-    case 'wasm':
-    default:
-      return 'cpu'
-  }
+  return preference === 'cuda' ? 'cuda' : 'cpu'
 }
 
-export function inferenceDeviceFallbackOrder(primary: ResolvedInferenceDevice): ResolvedInferenceDevice[] {
-  switch (primary) {
-    case 'dml':
-      return ['dml', 'cpu']
-    case 'cuda':
-      return ['cuda', 'cpu']
-    default:
-      return ['cpu']
+/** 按用户配置决定尝试的设备（无静默回退） */
+export function inferenceDeviceCandidates(
+  preference: InferenceDevicePreference | undefined
+): ResolvedInferenceDevice[] {
+  return [resolveInferenceDevicePreference(preference)]
+}
+
+export function inferenceDeviceLabel(device: ResolvedInferenceDevice): string {
+  const meta = loadDeviceMeta()
+  return meta.labels[device] ?? device
+}
+
+function hintForLoadFailure(
+  preference: InferenceDevicePreference | undefined,
+  device: ResolvedInferenceDevice
+): string | undefined {
+  const meta = loadDeviceMeta()
+  if (device === 'cuda' && platform === 'win32') {
+    return meta.hints.cuda_unsupported_platform
   }
+  if (device === 'cuda') {
+    return meta.hints.cuda_load_failed
+  }
+  if (preference === 'cuda') {
+    return meta.hints.explicit_no_fallback
+  }
+  return undefined
+}
+
+export function buildInferenceDeviceLoadError(
+  preference: InferenceDevicePreference | undefined,
+  device: ResolvedInferenceDevice,
+  cause: unknown
+): Error {
+  const causeMsg = cause instanceof Error ? cause.message : String(cause)
+  const label = inferenceDeviceLabel(device)
+  const hint = hintForLoadFailure(preference, device)
+  const parts = [`本地推理设备「${label}」加载失败：${causeMsg}`]
+  if (hint) parts.push(hint)
+  return new Error(parts.join('\n'))
+}
+
+export function buildInferenceDeviceRuntimeError(
+  preference: InferenceDevicePreference | undefined,
+  device: ResolvedInferenceDevice,
+  cause: unknown
+): Error {
+  const causeMsg = cause instanceof Error ? cause.message : String(cause)
+  const label = inferenceDeviceLabel(device)
+  const hint = hintForLoadFailure(preference, device)
+  const parts = [`本地推理设备「${label}」运行失败：${causeMsg}`]
+  if (hint) parts.push(hint)
+  return new Error(parts.join('\n'))
 }
 
 export function logInferenceDevice(message: string, extra?: unknown): void {
@@ -49,15 +105,13 @@ export function logInferenceDevice(message: string, extra?: unknown): void {
   else console.log(LOG_PREFIX, message)
 }
 
-/** DirectML 在 Qwen VL 加载/推理阶段常见的错误 */
-export function isDmlRuntimeInferenceError(err: unknown): boolean {
+/** CUDA 执行提供程序在加载/推理阶段常见的错误 */
+export function isGpuRuntimeInferenceError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err)
   return (
-    msg.includes('DmlExecutionProvider') ||
-    msg.includes('DirectML') ||
-    msg.includes('MultiHeadAttention') ||
-    msg.includes('80070057') ||
-    msg.includes("Can't append execution provider: dml") ||
+    msg.includes('CudaExecutionProvider') ||
+    msg.includes('CUDA') ||
+    msg.includes("Can't append execution provider: cuda") ||
     msg.includes('Unsupported device')
   )
 }
