@@ -10,3 +10,4 @@ Thumbs.db
 .env.*
 *.log
 models
+ollama-models

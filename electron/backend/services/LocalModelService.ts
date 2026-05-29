@@ -14,6 +14,9 @@ import {
   syncReadyMarkersFromCache
 } from './LocalModelReady'
 import { resolveLocalCaptionPrompt } from '../infra/analysis/LocalCaptionPrompt'
+import { usesOllamaCaption } from '../infra/LocalInferenceDevice'
+import { isAmdCaptionMode, resolveCaptionOllamaModel } from './CaptionRuntime'
+import { ollamaRuntimeService } from './OllamaRuntimeService'
 import { localInferenceBridge } from './LocalInferenceBridge'
 import type { LocalModelStatus, LocalModelStatusItem, LocalModelsRegistry } from '../../../shared/types'
 
@@ -59,7 +62,13 @@ export class LocalModelService {
   }
 
   async isCaptionModelReady(): Promise<boolean> {
-    const id = configService.load().analysis.localCaptionModelId
+    const config = configService.load()
+    if (usesOllamaCaption(config.localModels.inferenceDevice)) {
+      const status = await ollamaRuntimeService.getStatus()
+      return status.installed && status.running && status.modelReady
+    }
+
+    const id = config.analysis.localCaptionModelId
     const entry = findCaptionModel(id)
     if (!entry) return false
     if (this.isModelCached(id, entry.hfRepo)) return true
@@ -84,23 +93,29 @@ export class LocalModelService {
     }
   }
 
-  getStatus(): LocalModelStatus {
+  async getStatus(): Promise<LocalModelStatus> {
     syncReadyMarkersFromCache()
     const registry = loadLocalModelsRegistry()
     const config = configService.load()
+    const amdMode = usesOllamaCaption(config.localModels.inferenceDevice)
+    const ollamaStatus = amdMode ? await ollamaRuntimeService.getStatus() : undefined
     const items: LocalModelStatusItem[] = []
 
     for (const m of registry.caption) {
       const isDownloading = this.downloading?.kind === 'caption' && this.downloading.modelId === m.id
+      let ready = this.isModelCached(m.id, m.hfRepo)
+      if (amdMode && ollamaStatus) {
+        ready = ollamaStatus.modelReady
+      }
       items.push({
         id: m.id,
         label: m.label,
         kind: 'caption',
-        ready: this.isModelCached(m.id, m.hfRepo),
+        ready,
         downloading: isDownloading,
         progress: isDownloading ? this.downloadProgress : undefined,
         error: isDownloading ? (this.downloadError ?? undefined) : undefined,
-        estimatedSizeMb: m.estimatedSizeMb
+        estimatedSizeMb: amdMode ? (m.ollamaEstimatedSizeMb ?? m.estimatedSizeMb) : m.estimatedSizeMb
       })
     }
 
@@ -126,10 +141,12 @@ export class LocalModelService {
 
     return {
       modelsDir: getModelsCacheDir(),
+      ollamaModelsDir: ollamaStatus?.ollamaModelsDir,
       cacheSizeMb: this.estimateCacheSizeMb(),
       effectiveRemoteHost: getEffectiveRemoteHost(),
       items,
-      allReady
+      allReady,
+      ollama: ollamaStatus
     }
   }
 
@@ -157,6 +174,36 @@ export class LocalModelService {
     if (this.downloading) throw new Error('已有模型正在下载')
     const entry = kind === 'caption' ? findCaptionModel(modelId) : findEmbeddingModel(modelId)
     if (!entry) throw new Error(`未知模型: ${modelId}`)
+
+    if (kind === 'caption' && usesOllamaCaption(configService.load().localModels.inferenceDevice)) {
+      const modelTag = resolveCaptionOllamaModel(modelId)
+      if (!modelTag) throw new Error('未选择 Ollama 视觉模型')
+
+      const runtime = await ollamaRuntimeService.getStatus()
+      if (!runtime.runtimeReady) {
+        throw new Error('请先点击「配置 Ollama 运行环境」')
+      }
+
+      this.downloading = { modelId, kind }
+      this.downloadProgress = 0
+      this.downloadError = null
+      this.emitProgress(modelId, 0)
+      const unsub = ollamaRuntimeService.onSetupProgress((st) => {
+        this.downloadProgress = st.progress
+        this.emitProgress(modelId, st.progress)
+      })
+      try {
+        await ollamaRuntimeService.pullVisionModel(modelTag)
+        this.emitProgress(modelId, 100)
+      } catch (err) {
+        this.downloadError = err instanceof Error ? err.message : String(err)
+        throw err
+      } finally {
+        unsub()
+        this.downloading = null
+      }
+      return
+    }
 
     this.downloading = { modelId, kind }
     this.downloadProgress = 0

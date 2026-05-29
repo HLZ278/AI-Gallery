@@ -28,7 +28,8 @@
     "remotePathTemplate": "",
     "hfToken": "",
     "ignoreEnvHfToken": true,
-    "inferenceDevice": "wasm"
+    "inferenceDevice": "wasm",
+    "ollamaVisionModelTag": "qwen3-vl:2b-instruct"
   },
   "embedding": {
     "enabled": true,

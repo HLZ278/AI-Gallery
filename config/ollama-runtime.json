@@ -1,0 +1,56 @@
+{
+  "baseUrl": "http://127.0.0.1:11434",
+  "modelsSubdir": "ollama-models",
+  "timeoutMs": 300000,
+  "visionModelAliases": {
+    "qwen3-vl:2b": "qwen3-vl:2b-instruct",
+    "qwen3-vl:4b": "qwen3-vl:4b-instruct",
+    "qwen3-vl:8b": "qwen3-vl:8b-instruct"
+  },
+  "chatRequest": {
+    "think": false,
+    "defaultNumPredict": 768
+  },
+  "visionModels": [
+    {
+      "tag": "qwen3-vl:2b-instruct",
+      "label": "Qwen3-VL 2B Instruct（推荐，约 1.9GB，适合图片结构化描述）",
+      "estimatedSizeMb": 1900,
+      "recommended": true
+    },
+    {
+      "tag": "qwen3-vl:4b-instruct",
+      "label": "Qwen3-VL 4B Instruct（更强理解，约 3.3GB）",
+      "estimatedSizeMb": 3300
+    },
+    {
+      "tag": "qwen3-vl:8b-instruct",
+      "label": "Qwen3-VL 8B Instruct（高质量，约 6.1GB）",
+      "estimatedSizeMb": 6100
+    },
+    {
+      "tag": "qwen2.5vl:3b",
+      "label": "Qwen2.5-VL 3B（上一代，约 3GB）",
+      "estimatedSizeMb": 3200
+    },
+    {
+      "tag": "qwen2.5vl:7b",
+      "label": "Qwen2.5-VL 7B（OCR/细节更好，约 5.5GB）",
+      "estimatedSizeMb": 5800
+    }
+  ],
+  "installer": {
+    "downloadUrl": "https://ollama.com/download/OllamaSetup.exe",
+    "silentArgs": ["/VERYSILENT", "/NORESTART"]
+  },
+  "installDirEnv": "LOCALAPPDATA",
+  "installRelativePath": "Programs/Ollama/ollama.exe",
+  "gpuEnv": {
+    "OLLAMA_GPU_OVERIDE": "vulkan",
+    "OLLAMA_NUM_PARALLEL": "1",
+    "OLLAMA_MAX_LOADED_MODELS": "1"
+  },
+  "serveStartupWaitMs": 8000,
+  "installPollIntervalMs": 1000,
+  "installPollMaxAttempts": 120
+}

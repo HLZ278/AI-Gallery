@@ -33,16 +33,18 @@ npm run pack
 ### 本地分析（推荐，省 token）
 
 1. 打开 **设置** → **本地端侧分析**
-2. 若无法访问 Hugging Face，在 **模型下载源** 填写 `https://hf-mirror.com`（或设置系统环境变量 `HF_ENDPOINT`），保存后重新下载（**无需 HF 账号**，Xenova 模型均为公开）
-3. 点击 **下载** 按钮，下载本地描述模型与 BGE 向量模型：
-   - **Qwen3-VL 2B**（推荐，约 4.5GB，新一代推理）
-   - **Qwen2.5-VL 3B**（约 5.5GB，理解/OCR 更好）
-4. **本地推理设备** 选「自动」：有 GPU 时尝试 DirectML/CUDA，失败回退 CPU；纯 CPU 可选 WASM
-5. **本地并发** 建议 1（3B 模型内存占用高）
+2. 选择 **本地推理设备**：
+   - **纯 CPU**：下载 ONNX 模型（见下），适合无独显或 NVIDIA 不可用环境
+   - **CUDA（NVIDIA GPU）**：Linux + CUDA 12 环境
+   - **AMD GPU（Ollama + Vulkan）**：Windows AMD 显卡；先 **配置 Ollama 运行环境**，再 **下载视觉模型**（Instruct 版，如 Qwen3-VL 2B Instruct）
+3. 若无法访问 Hugging Face，在 **模型下载源** 填写 `https://hf-mirror.com`（ONNX 模型**无需 HF 账号**）
+4. **纯 CPU / CUDA** 路径：点击 **下载** Qwen3-VL 与 BGE 向量模型
+5. **本地并发** 建议 1（3B 模型或 Ollama 首帧较慢）
 6. 保持 **默认分析模式** 为「本地」、**向量提供方** 为「本地」
 7. 点击 **保存设置**
 
-本地提问与 `prompts/image_analysis_*.json` 的 `local_caption_instruction` 对齐；模型输出 JSON 会解析到描述、人物、场景等字段。
+本地提问与 `prompts/image_analysis_*.json` 的 `local_caption_instruction` 对齐；模型输出 JSON 会解析到描述、人物、场景等字段。  
+**AMD 模式**下 ONNX 仅用于 BGE 向量，视觉分析由 Ollama 完成，模型分别存放在 `models/` 与 `ollama-models/`。
 
 ### 云端增强（可选）
 
@@ -59,8 +61,9 @@ npm run pack
 
 1. 点击 **图库** → **添加图库**
 2. 选择存放照片的文件夹
-3. 点击 **扫描目录**，应用会导入并启动 AI 分析
-4. 应用会自动监控图库目录变更（新增/删除文件）
+3. 点击 **扫描目录** 导入媒体
+4. 扫描完成后点击 **开始分析 (N)** 启动 AI 分析（不会自动开始）
+5. 应用会自动监控图库目录变更（新增/修改/删除文件）
 
 ---
 
@@ -150,10 +153,16 @@ npm run pack
 
 ## 10. 常见问题
 
-### Q: 分析一直 pending？
+### Q: 分析一直 pending 或没有进展？
 
-- 检查 API Key 与视觉模型
-- 侧边栏可 **重试全部失败项**
+- **本地 ONNX**：确认描述模型与 BGE 已下载；查看终端 `[LocalInference]` 日志
+- **AMD/Ollama**：确认 Ollama 已配置、视觉模型为 **Instruct** 版且已下载；查看 `[Ollama]` / `[AnalysisParse]` 日志
+- **云端回退**：勾选「本地不可用时回退云端」并填写 API Key
+- 侧边栏可 **重试全部失败项**；单张可用 **本地重新分析**
+
+### Q: 描述里出现整段 JSON 或 OCR 特别长？
+
+- 升级至 v1.8.3+ 后 **重新分析** 该图；新版本会自动解析 JSON 并截断异常 OCR
 
 ### Q: 搜不到人名/IP？
 
@@ -169,7 +178,8 @@ Key 仅保存在本机 `%APPDATA%/YourPicture/config.json`。
 ## 11. 推荐使用流程
 
 ```
-配置 API → 添加图库 → 扫描/导入 → 等待分析 → 建立向量索引 → 搜索浏览
+添加图库 → 扫描 → 开始分析 → 建立向量索引 → 搜索浏览
+（可选：详情面板「云端增强分析」）
 ```
 
 祝您使用愉快！

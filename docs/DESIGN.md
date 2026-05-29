@@ -15,10 +15,14 @@ AI图库 是一款 Windows 智能图库桌面应用，通过视觉大模型对�
 
 ```
 UI (React) → IPC → Services → Domain → Infrastructure → SQLite / 文件系统
-                              ↘ LocalInferenceBridge → 推理子进程 (ONNX / transformers)
+                              ├─ LocalInferenceBridge → 推理子进程 (ONNX Qwen VL / BGE)
+                              └─ OllamaRuntimeService → 本地 Ollama HTTP (AMD 视觉)
+                              └─ CloudImageAnalysisProvider → OpenAI 兼容 API (百炼)
 ```
 
-本地 **Qwen VL 描述** 与 **BGE 向量** 在独立子进程中执行，主进程仅负责队列、数据库与 IPC，避免 ONNX 阻塞 UI。
+- **wasm / cuda**：Qwen VL 描述与 BGE 向量在独立子进程 ONNX 执行，主进程不加载 transformers
+- **amd**：视觉描述走 Ollama `/api/chat`，向量仍 ONNX BGE（CPU）
+- **cloud**：百炼等 OpenAI 兼容视觉 API；可选「云端增强」覆盖本地结果
 
 | 层级 | 职责 |
 |------|------|
@@ -48,10 +52,17 @@ Apple 风格 Design Token：圆角 12px、毛玻璃侧边栏、#007AFF 强调色
 
 页面：搜索、文生图、AI 编辑、图库、导入、设置。
 
+### v1.8.3 变更
+
+- **AMD/Ollama 路径**：`inferenceDevice=amd` 时视觉走 Ollama + Vulkan；模型目录 `ollama-models/`
+- **推理设备**：仅 wasm（CPU）/ cuda / amd；GPU 失败显式报错，不再静默回退
+- **分析解析**：markdown 围栏剥离、JSON 截断容错、OCR 重复清洗（`analysis-limits.json`）
+- 架构快照：[ARCHITECTURE_v1.8.3.md](./archive/snapshots/ARCHITECTURE_v1.8.3.md)
+
 ### v1.8.2 变更
 
-- **DirectML 加速**：Windows `auto`/`dml` 启用 GPU 推理，失败回退 CPU
 - **图库工作流**：扫描后手动分析；展示 processing 统计
+- ~~DirectML~~（v1.8.3 已移除，AMD 改用 Ollama）
 
 ### v1.8.1 变更
 
@@ -90,16 +101,25 @@ Apple 风格 Design Token：圆角 12px、毛玻璃侧边栏、#007AFF 强调色
 - **视频预览**：自定义进度/倍速控件
 - **多图对比**：选中图片后选 1–6 张滑动窗口，左右平移比对
 
-## 6. 本地分析架构（v1.8.0）
+## 6. 分析架构（v1.8.3）
 
 ```
-AnalysisQueue → AnalysisProviderFactory → Local / Cloud Provider
-EmbeddingService → EmbeddingProviderFactory → Local / Cloud Provider
-LocalModelService → config/local-models.json → userData/models/
+AnalysisQueue → resolveAnalysisMode → AnalysisProviderFactory
+    ├─ CloudImageAnalysisProvider   → OpenAI chat.completions（图片/视频一次请求）
+    ├─ LocalImageAnalysisProvider   → LocalInferenceBridge → QwenVLCaptionEngine（逐帧视频）
+    └─ OllamaImageAnalysisProvider  → POST /api/chat（AMD，逐帧视频）
+
+EmbeddingService → BGE 本地 ONNX 或云端 OpenAI Embedding
 ```
 
-- 云端分析仍走 `CloudImageAnalysisProvider`（原 LLMClient 逻辑）
-- 预处理共用 `MediaPreprocessor`（sharp / ffmpeg / GIF 抽帧）
+| 路径 | 图片 | 视频/GIF |
+|------|------|----------|
+| 云端 | 1× chat + image_url | 1× chat + video 多帧 |
+| 本地 ONNX | 1× generate | N× generate → merge |
+| 本地 Ollama | 1× /api/chat | N× /api/chat → merge |
+
+配置：`config/local-models.json`、`config/ollama-runtime.json`、`config/inference-devices.json`  
+预处理共用 `MediaPreprocessor`（sharp / ffmpeg / GIF 抽帧）
 
 ## 7. 扩展预留
 

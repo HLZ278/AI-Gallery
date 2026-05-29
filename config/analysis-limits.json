@@ -1,0 +1,6 @@
+{
+  "ocrTextMaxChars": 400,
+  "textFieldMaxChars": 1500,
+  "ocrRepeatMinUnitLen": 6,
+  "ocrRepeatMaxRuns": 2
+}

@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react'
-import type { AppConfig, LocalModelStatus, LocalModelsRegistry } from '../../shared/types'
+import type {
+  AppConfig,
+  LocalModelStatus,
+  LocalModelsRegistry,
+  OllamaRuntimeStatus,
+  OllamaVisionModelEntry
+} from '../../shared/types'
 import { toast } from '../store/toastStore'
 import { confirmAction } from '../store/confirmStore'
 import { useAppStore } from '../store/appStore'
 import { resolveTheme } from '../utils/theme'
 import { ModelDownloadAction } from '../components/ModelDownloadAction'
+import { OllamaSetupAction } from '../components/OllamaSetupAction'
 
 export function SettingsPage() {
   const config = useAppStore((s) => s.config)
@@ -31,9 +38,21 @@ export function SettingsPage() {
   const [lanMsg, setLanMsg] = useState('')
   const [llmTestMsg, setLlmTestMsg] = useState('')
   const [llmTesting, setLlmTesting] = useState(false)
+  const [ollamaSetupBusy, setOllamaSetupBusy] = useState(false)
+  const [ollamaLiveStatus, setOllamaLiveStatus] = useState<OllamaRuntimeStatus | null>(null)
+  const [ollamaStatus, setOllamaStatus] = useState<OllamaRuntimeStatus | null>(null)
+  const [ollamaVisionCatalog, setOllamaVisionCatalog] = useState<OllamaVisionModelEntry[]>([])
 
   const refreshEmbedStats = async () => {
     setEmbedStats(await window.api.embedding.getStats())
+  }
+
+  const refreshOllamaStatus = async () => {
+    try {
+      setOllamaStatus(await window.api.ollama.getStatus())
+    } catch {
+      setOllamaStatus(null)
+    }
   }
 
   const refreshLocalModelStatus = async () => {
@@ -42,6 +61,7 @@ export function SettingsPage() {
     } catch {
       setLocalModelStatus(null)
     }
+    await refreshOllamaStatus()
   }
 
   useEffect(() => {
@@ -49,13 +69,22 @@ export function SettingsPage() {
     void refreshEmbedStats()
     void refreshLocalModelStatus()
     window.api.localModel.getRegistry().then(setModelRegistry).catch(() => null)
-    const unsub = window.api.localModel.onDownloadProgress((payload) => {
+    window.api.ollama.getVisionCatalog().then(setOllamaVisionCatalog).catch(() => null)
+    const unsubDownload = window.api.localModel.onDownloadProgress((payload) => {
       setModelDownloadProgress(payload)
     })
-    return unsub
+    const unsubOllama = window.api.ollama.onSetupProgress((status) => {
+      setOllamaLiveStatus(status)
+    })
+    return () => {
+      unsubDownload()
+      unsubOllama()
+    }
   }, [config])
 
   if (!form) return <div className="p-6">加载中...</div>
+
+  const isAmdInference = form.localModels?.inferenceDevice === 'amd'
 
   const updateLlm = (key: keyof AppConfig['llm'], value: string | number) => {
     setForm({ ...form, llm: { ...form.llm, [key]: value } })
@@ -127,7 +156,32 @@ export function SettingsPage() {
     runEmbedTask('rebuild')
   }
 
+  const handleOllamaSetup = async () => {
+    setOllamaSetupBusy(true)
+    setModelMsg('')
+    try {
+      await window.api.config.save(form)
+      setConfig(form)
+      await window.api.ollama.setup()
+      setModelMsg('Ollama 运行环境已就绪')
+      await refreshOllamaStatus()
+      await refreshLocalModelStatus()
+      toast('Ollama 运行环境已就绪，请选择并下载视觉模型', 'success')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setModelMsg(`Ollama 配置失败：${msg}`)
+      toast(msg, 'error')
+    } finally {
+      setOllamaSetupBusy(false)
+      setOllamaLiveStatus(null)
+    }
+  }
+
   const handleDownloadModel = async (modelId: string, kind: 'caption' | 'embedding') => {
+    if (kind === 'caption' && isAmdInference) {
+      await window.api.config.save(form)
+      setConfig(form)
+    }
     setModelDownloadBusy(true)
     setModelMsg('')
     setModelDownloadProgress({ modelId, progress: 0 })
@@ -152,6 +206,12 @@ export function SettingsPage() {
 
   const selectedCaptionModel = modelRegistry?.caption.find((m) => m.id === form?.analysis.localCaptionModelId)
   const selectedEmbeddingModel = modelRegistry?.embedding.find((m) => m.id === form?.embedding.localModelId)
+  const selectedOllamaVision = ollamaVisionCatalog.find((m) => m.tag === form.localModels.ollamaVisionModelTag)
+  const ollamaRuntimeStatus = ollamaLiveStatus ?? ollamaStatus ?? localModelStatus?.ollama ?? null
+  const ollamaRuntimeReady = ollamaRuntimeStatus?.runtimeReady ?? false
+  const ollamaModelReady =
+    Boolean(ollamaRuntimeStatus?.modelReady) &&
+    ollamaRuntimeStatus?.visionModel === form.localModels.ollamaVisionModelTag
 
   const handleSave = async () => {
     await window.api.config.save(form)
@@ -298,45 +358,112 @@ export function SettingsPage() {
             <option value="cloud">云端（消耗 API）</option>
           </select>
         </Field>
-        <Field label="本地描述模型">
-          <select
-            value={form.analysis.localCaptionModelId}
-            onChange={(e) => updateAnalysis('localCaptionModelId', e.target.value)}
-            className="field-input"
-          >
-            {(modelRegistry?.caption ?? []).map((m) => {
-              const st = localModelStatus?.items.find((i) => i.id === m.id && i.kind === 'caption')
-              const prefix = m.recommended ? '【推荐】' : ''
-              return (
-                <option key={m.id} value={m.id}>
-                  {prefix}
-                  {m.label} {st?.ready ? '（已就绪）' : '（未下载）'}
-                </option>
-              )
-            })}
-          </select>
-          {selectedCaptionModel && (
-            <ModelDownloadAction
-              modelId={selectedCaptionModel.id}
-              kind="caption"
-              label={selectedCaptionModel.label}
-              estimatedSizeMb={selectedCaptionModel.estimatedSizeMb}
-              status={findModelStatus(selectedCaptionModel.id, 'caption')}
-              liveProgress={modelDownloadProgress}
-              busy={modelDownloadBusy}
-              onDownload={(id, kind) => void handleDownloadModel(id, kind)}
-            />
-          )}
-        </Field>
         <Field label="本地推理设备">
           <select
             value={form.localModels?.inferenceDevice ?? 'wasm'}
-            onChange={(e) => updateLocalModels('inferenceDevice', e.target.value)}
+            onChange={(e) => {
+              updateLocalModels('inferenceDevice', e.target.value)
+              if (e.target.value === 'amd') void refreshOllamaStatus()
+            }}
             className="field-input"
           >
             <option value="wasm">纯 CPU（最兼容，速度较慢）</option>
-            <option value="cuda">CUDA（NVIDIA GPU）</option>
+            <option value="cuda">CUDA（NVIDIA GPU，Linux）</option>
+            <option value="amd">AMD GPU（Ollama + Vulkan）</option>
           </select>
+          {isAmdInference && (
+            <OllamaSetupAction
+              status={ollamaRuntimeStatus}
+              liveStatus={ollamaLiveStatus}
+              busy={ollamaSetupBusy}
+              onSetup={() => void handleOllamaSetup()}
+            />
+          )}
+        </Field>
+        <Field label="本地描述模型">
+          {!isAmdInference ? (
+            <>
+              <select
+                value={form.analysis.localCaptionModelId}
+                onChange={(e) => updateAnalysis('localCaptionModelId', e.target.value)}
+                className="field-input"
+              >
+                {(modelRegistry?.caption ?? []).map((m) => {
+                  const st = localModelStatus?.items.find((i) => i.id === m.id && i.kind === 'caption')
+                  const prefix = m.recommended ? '【推荐】' : ''
+                  return (
+                    <option key={m.id} value={m.id}>
+                      {prefix}
+                      {m.label} {st?.ready ? '（已就绪）' : '（未下载）'}
+                    </option>
+                  )
+                })}
+              </select>
+              {selectedCaptionModel && (
+                <ModelDownloadAction
+                  modelId={selectedCaptionModel.id}
+                  kind="caption"
+                  label={selectedCaptionModel.label}
+                  estimatedSizeMb={selectedCaptionModel.estimatedSizeMb}
+                  status={findModelStatus(selectedCaptionModel.id, 'caption')}
+                  liveProgress={modelDownloadProgress}
+                  busy={modelDownloadBusy}
+                  onDownload={(id, kind) => void handleDownloadModel(id, kind)}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              <select
+                value={form.localModels.ollamaVisionModelTag}
+                onChange={(e) => updateLocalModels('ollamaVisionModelTag', e.target.value)}
+                className="field-input"
+              >
+                {ollamaVisionCatalog.map((m) => {
+                  const prefix = m.recommended ? '【推荐】' : ''
+                  const ready =
+                    ollamaModelReady && m.tag === form.localModels.ollamaVisionModelTag
+                  return (
+                    <option key={m.tag} value={m.tag}>
+                      {prefix}
+                      {m.label} {ready ? '（已就绪）' : '（未下载）'}
+                    </option>
+                  )
+                })}
+              </select>
+              {selectedOllamaVision && (
+                <ModelDownloadAction
+                  modelId={form.analysis.localCaptionModelId}
+                  kind="caption"
+                  label={selectedOllamaVision.label}
+                  estimatedSizeMb={selectedOllamaVision.estimatedSizeMb}
+                  status={{
+                    id: form.analysis.localCaptionModelId,
+                    label: selectedOllamaVision.label,
+                    kind: 'caption',
+                    ready: ollamaModelReady,
+                    downloading: modelDownloadBusy,
+                    progress: modelDownloadProgress?.modelId === form.analysis.localCaptionModelId
+                      ? modelDownloadProgress.progress
+                      : undefined
+                  }}
+                  liveProgress={modelDownloadProgress}
+                  busy={modelDownloadBusy}
+                  disabled={!ollamaRuntimeReady}
+                  disabledHint="请先点击上方「配置 Ollama 运行环境」"
+                  onDownload={(id, kind) => void handleDownloadModel(id, kind)}
+                />
+              )}
+              {!ollamaRuntimeReady && (
+                <p className="mt-2 text-xs text-orange-500">
+                  请先在上方「本地推理设备」中配置 Ollama 运行环境，再下载视觉模型。
+                </p>
+              )}
+              <p className="mt-2 text-xs text-[var(--color-muted)]">
+                Ollama 模型与 ONNX 权重分开存储。切换模型后下载时会自动保存设置。
+              </p>
+            </>
+          )}
         </Field>
         <Field label="本地分析并发">
           <input
@@ -359,6 +486,9 @@ export function SettingsPage() {
         {localModelStatus && (
           <div className="text-xs text-[var(--color-muted)] space-y-1 pt-1 border-t border-[var(--color-border)]">
             <p>模型目录：{localModelStatus.modelsDir}</p>
+            {localModelStatus.ollamaModelsDir && (
+              <p>Ollama 模型目录：{localModelStatus.ollamaModelsDir}</p>
+            )}
             <p>缓存约 {localModelStatus.cacheSizeMb} MB</p>
             {!localModelStatus.allReady && (
               <p className="text-orange-500">部分模型未下载，本地分析/向量可能不可用</p>

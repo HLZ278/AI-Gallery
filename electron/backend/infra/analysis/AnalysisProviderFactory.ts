@@ -3,12 +3,17 @@ import { configService } from '../../services/ConfigService'
 import { getModelsCacheDir } from '../../services/LocalModelRegistry'
 import { syncReadyMarkersFromCache } from '../../services/LocalModelReady'
 import { localModelService } from '../../services/LocalModelService'
+import { ollamaRuntimeService } from '../../services/OllamaRuntimeService'
+import { usesOllamaCaption } from '../LocalInferenceDevice'
 import type { IImageAnalysisProvider } from './IImageAnalysisProvider'
 import { cloudImageAnalysisProvider } from './CloudImageAnalysisProvider'
 import { localImageAnalysisProvider } from './LocalImageAnalysisProvider'
+import { ollamaImageAnalysisProvider } from './OllamaImageAnalysisProvider'
 
 export function createImageAnalysisProvider(mode: AnalysisMode): IImageAnalysisProvider {
   if (mode === 'cloud') return cloudImageAnalysisProvider
+  const preference = configService.load().localModels.inferenceDevice
+  if (usesOllamaCaption(preference)) return ollamaImageAnalysisProvider
   return localImageAnalysisProvider
 }
 
@@ -18,6 +23,29 @@ export async function resolveAnalysisMode(requested?: AnalysisMode): Promise<Ana
   if (mode === 'cloud') return 'cloud'
 
   const modelId = config.analysis.localCaptionModelId
+
+  if (usesOllamaCaption(config.localModels.inferenceDevice)) {
+    const status = await ollamaRuntimeService.getStatus()
+    if (status.installed && status.running && status.modelReady) return 'local'
+
+    console.warn('[Analysis] Ollama caption not ready', {
+      modelId,
+      visionModel: status.visionModel,
+      ollamaModelsDir: status.ollamaModelsDir,
+      fallbackEnabled: config.analysis.fallbackToCloudWhenLocalUnavailable,
+      hasApiKey: Boolean(config.llm.apiKey?.trim())
+    })
+
+    if (config.analysis.fallbackToCloudWhenLocalUnavailable && config.llm.apiKey?.trim()) {
+      console.warn('[Analysis] fallback to cloud analysis')
+      return 'cloud'
+    }
+
+    throw new Error(
+      `Ollama 视觉模型未就绪（${status.visionModel ?? '未选择'}）。请先配置 Ollama 运行环境，再选择并下载视觉模型。`
+    )
+  }
+
   syncReadyMarkersFromCache()
   const ready = await localModelService.isCaptionModelReady()
   if (ready) return 'local'

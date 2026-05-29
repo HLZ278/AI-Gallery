@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'fs'
 import { join } from 'path'
 import type { AppConfig } from '../../../shared/types'
+import { getDefaultOllamaVisionModelTag, resolveVisionModelTag } from '../infra/OllamaRuntimeConfig'
 import { loadLocalModelsRegistry } from './LocalModelRegistry'
 
 const CONFIG_FILENAME = 'config.json'
@@ -59,7 +60,8 @@ function migrateAppConfig(config: AppConfig): AppConfig {
       remotePathTemplate: '',
       hfToken: '',
       ignoreEnvHfToken: true,
-      inferenceDevice: 'wasm'
+      inferenceDevice: 'wasm',
+      ollamaVisionModelTag: getDefaultOllamaVisionModelTag()
     }
   }
   if (!config.localModels.inferenceDevice) {
@@ -68,6 +70,11 @@ function migrateAppConfig(config: AppConfig): AppConfig {
   const legacyDevice = config.localModels.inferenceDevice as string
   if (legacyDevice === 'auto' || legacyDevice === 'dml') {
     config.localModels.inferenceDevice = 'wasm'
+  }
+  if (!config.localModels.ollamaVisionModelTag?.trim()) {
+    config.localModels.ollamaVisionModelTag = getDefaultOllamaVisionModelTag()
+  } else {
+    config.localModels.ollamaVisionModelTag = resolveVisionModelTag(config.localModels.ollamaVisionModelTag)
   }
   return config
 }

@@ -10,6 +10,7 @@ export type ResolvedInferenceDevice = 'cpu' | 'cuda'
 
 interface InferenceDeviceMeta {
   labels: Record<ResolvedInferenceDevice, string>
+  preferenceLabels?: Record<InferenceDevicePreference, string>
   hints: Record<string, string>
 }
 
@@ -43,6 +44,17 @@ export function resolveInferenceDevicePreference(
   preference: InferenceDevicePreference | undefined
 ): ResolvedInferenceDevice {
   return preference === 'cuda' ? 'cuda' : 'cpu'
+}
+
+/** AMD 视觉分析走 Ollama，不走 ONNX 推理子进程 */
+export function usesOllamaCaption(preference: InferenceDevicePreference | undefined): boolean {
+  return preference === 'amd'
+}
+
+export function inferenceDevicePreferenceLabel(preference: InferenceDevicePreference | undefined): string {
+  const meta = loadDeviceMeta()
+  const key = preference ?? 'wasm'
+  return meta.preferenceLabels?.[key] ?? meta.labels[resolveInferenceDevicePreference(preference)] ?? key
 }
 
 /** 按用户配置决定尝试的设备（无静默回退） */

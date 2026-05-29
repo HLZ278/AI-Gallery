@@ -1,4 +1,5 @@
 import type { ImageAnalysisPayload } from '../../../../shared/types'
+import { sanitizeAnalysisPayload } from './AnalysisTextSanitizer'
 
 /** 本地模型常用中文字段名 → 标准 payload 字段 */
 const CHINESE_FIELD_ALIASES: Record<string, keyof ImageAnalysisPayload | 'is_meme'> = {
@@ -23,21 +24,87 @@ const CHINESE_FIELD_ALIASES: Record<string, keyof ImageAnalysisPayload | 'is_mem
   '关联 IP': 'ip_references'
 }
 
-export function extractJsonObject(text: string): Record<string, unknown> | null {
+export function stripMarkdownFence(text: string): string {
   const trimmed = text.trim()
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  const candidate = (fenced?.[1] ?? trimmed).trim()
-  const jsonMatch = candidate.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) return null
-  try {
-    const parsed = JSON.parse(jsonMatch[0]) as unknown
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>
-    }
-  } catch {
-    return null
+  const closed = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/i)
+  if (closed) return closed[1].trim()
+  if (/^```(?:json)?/i.test(trimmed)) {
+    return trimmed.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
   }
-  return null
+  return trimmed
+}
+
+export function extractJsonObject(text: string): Record<string, unknown> | null {
+  const candidate = stripMarkdownFence(text)
+  const jsonStart = candidate.indexOf('{')
+  if (jsonStart < 0) return null
+
+  const jsonText = candidate.slice(jsonStart)
+  const jsonMatch = jsonText.match(/\{[\s\S]*\}/)
+
+  if (jsonMatch) {
+    const attempts = [jsonMatch[0], repairTruncatedJson(jsonMatch[0])]
+    for (const attempt of attempts) {
+      if (!attempt) continue
+      try {
+        const parsed = JSON.parse(attempt) as unknown
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>
+        }
+      } catch {
+        /* 尝试下一种修复 */
+      }
+    }
+    const partial = tryExtractPartialJson(jsonMatch[0])
+    if (partial) return partial
+  }
+
+  // 模型输出被 num_predict 截断、缺少闭合 } 时仍尝试字段级提取
+  return tryExtractPartialJson(jsonText)
+}
+
+/** 截断或损坏的 ocr_text 常导致 JSON 无法闭合，先替换该字段再解析 */
+function repairTruncatedJson(json: string): string | null {
+  const withoutOcr = json.replace(/"ocr_text"\s*:\s*"[\s\S]*?(?=",\s*"[a-z_]+"\s*:)/i, '"ocr_text":""')
+  if (withoutOcr === json) return null
+  const closed = withoutOcr.endsWith('}') ? withoutOcr : `${withoutOcr}}`
+  return closed
+}
+
+/** JSON 整体解析失败时，用正则提取主要字段 */
+function tryExtractPartialJson(json: string): Record<string, unknown> | null {
+  const pickString = (key: string): string | undefined => {
+    const m = json.match(new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, 's'))
+    return m?.[1]?.replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+  }
+  const pickArray = (key: string): string[] | undefined => {
+    const m = json.match(new RegExp(`"${key}"\\s*:\\s*\\[(.*?)\\]`, 's'))
+    if (!m) return undefined
+    try {
+      const arr = JSON.parse(`[${m[1]}]`) as unknown
+      return Array.isArray(arr) ? arr.map(String) : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  const description = pickString('description')
+  if (!description) return null
+
+  return {
+    description,
+    objects: pickArray('objects') ?? [],
+    people: pickArray('people') ?? [],
+    scene: pickString('scene') ?? '',
+    location: pickString('location') ?? '',
+    story: pickString('story') ?? '',
+    trend_tags: pickArray('trend_tags') ?? [],
+    mood: pickString('mood') ?? '',
+    colors: pickArray('colors') ?? [],
+    ocr_text: pickString('ocr_text') ?? '',
+    is_meme: pickString('is_meme') === 'true',
+    ip_references: pickArray('ip_references') ?? []
+  }
 }
 
 export function toStringArray(val: unknown): string[] {
@@ -74,7 +141,7 @@ function normalizeRawKeys(raw: Record<string, unknown>): Record<string, unknown>
 
 export function mapStructuredPayload(raw: Record<string, unknown>): ImageAnalysisPayload {
   const n = normalizeRawKeys(raw)
-  return {
+  return sanitizeAnalysisPayload({
     description: String(n.description ?? ''),
     objects: toStringArray(n.objects),
     people: toStringArray(n.people),
@@ -87,7 +154,7 @@ export function mapStructuredPayload(raw: Record<string, unknown>): ImageAnalysi
     ocr_text: String(n.ocr_text ?? ''),
     is_meme: parseBooleanField(n.is_meme),
     ip_references: toStringArray(n.ip_references)
-  }
+  })
 }
 
 export function tryParseCaptionToPayload(
@@ -95,10 +162,26 @@ export function tryParseCaptionToPayload(
   dominantColors: string[],
   geoText?: string | null
 ): ImageAnalysisPayload | null {
+  const hasFence = /^```(?:json)?/im.test(caption.trim())
   const raw = extractJsonObject(caption)
+
+  console.log('[AnalysisParse] 尝试解析模型输出', {
+    rawLen: caption.length,
+    hasMarkdownFence: hasFence,
+    preview: caption.slice(0, 160).replace(/\s+/g, ' '),
+    parsed: Boolean(raw),
+    mode: raw ? (caption.match(/\{[\s\S]*\}/) ? 'full-or-partial-json' : 'partial-fields') : 'failed'
+  })
+
   if (!raw) return null
 
   const payload = mapStructuredPayload(raw)
+  console.log('[AnalysisParse] 解析成功', {
+    descriptionLen: payload.description.length,
+    objects: payload.objects.length,
+    scene: payload.scene.slice(0, 40)
+  })
+
   const geo = geoText?.trim()
   const loc = payload.location.trim()
   if (geo && (!loc || loc === '无法确定' || loc === '未识别')) {
@@ -109,7 +192,7 @@ export function tryParseCaptionToPayload(
   }
   if (!payload.description.trim()) {
     const parts = [payload.scene, payload.story].filter(Boolean)
-    payload.description = parts.join('；') || caption.trim()
+    payload.description = parts.join('；') || stripMarkdownFence(caption).slice(0, 500)
   }
   return payload
 }

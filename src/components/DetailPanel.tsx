@@ -226,10 +226,13 @@ function ActionButton({ onClick, children }: { onClick: () => void; children: Re
 
 function Section({ title, content }: { title: string; content: string }) {
   if (!content) return null
+  const long = content.length > 600
   return (
     <section>
       <h4 className="text-xs font-medium text-[var(--color-muted)] mb-1">{title}</h4>
-      <p>{content}</p>
+      <p className={long ? 'line-clamp-6 break-all text-xs opacity-90' : 'break-words'} title={long ? content : undefined}>
+        {content}
+      </p>
     </section>
   )
 }

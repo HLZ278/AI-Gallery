@@ -27,9 +27,16 @@ export function getLegacyModelsCacheDir(): string {
   return join(app.getPath('userData'), 'models')
 }
 
-/** 模型下载与缓存目录（安装目录旁 models/） */
+/** 模型下载与缓存目录（安装目录旁 models/，ONNX） */
 export function getModelsCacheDir(): string {
   const fromEnv = process.env.PICTURESEARCH_MODELS_DIR?.trim()
   if (fromEnv) return fromEnv
   return join(getAppInstallDir(), 'models')
+}
+
+/** Ollama 模型目录（与 ONNX models/ 分离，避免污染） */
+export function getOllamaModelsDir(): string {
+  const fromEnv = process.env.OLLAMA_MODELS?.trim()
+  if (fromEnv) return fromEnv
+  return join(getAppInstallDir(), 'ollama-models')
 }

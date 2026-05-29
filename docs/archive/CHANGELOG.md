@@ -2,6 +2,29 @@
 
 > 每一次功能变动均记录于此。版本快照见 `versions/` 与 `snapshots/`。
 
+## [1.8.3] - 2026-05-29
+
+### 新增
+
+- **AMD GPU（Ollama + Vulkan）**：视觉分析走 `OllamaImageAnalysisProvider` + `/api/chat`；BGE 向量仍 ONNX CPU
+- `OllamaRuntimeService`、设置页 Ollama 环境配置与视觉模型独立下载；IPC `ollama:*`
+- `config/ollama-runtime.json`、`config/analysis-limits.json`；Qwen3-VL **Instruct** 为默认 Ollama 视觉模型
+- 分析 API 链路归档：`docs/archive/snapshots/ARCHITECTURE_v1.8.3.md`
+
+### 变更
+
+- 推理设备简化为 **wasm / cuda / amd**；移除 DirectML、`auto` 与静默 CPU 回退
+- GPU 加载失败显式报错（文案来自 `inference-devices.json`）
+- 本地 caption 提示词禁止 markdown 代码块；OCR 字段长度与重复内容清洗
+- JSON 解析增强：剥围栏、截断容错、字段级提取；解析失败不再整段 JSON 写入描述
+
+### 修复
+
+- Ollama 模式设置页下载按钮不显示（需先保存配置）
+- `qwen3-vl:2b` Thinking 版导致分析无进展/空内容（改 Instruct + `think:false`）
+- 单图 Ollama 请求未缩放原图导致极慢
+- 详情面板 OCR/描述过长撑爆 UI
+
 ## [1.8.2] - 2026-05-29
 
 ### 新增

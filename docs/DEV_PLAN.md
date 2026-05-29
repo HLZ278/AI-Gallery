@@ -11,6 +11,24 @@
 | Phase 4 | 主题、打包配置、用户手册 | 已完成 |
 | Phase 5 | 分析进度增强、AI 智能搜索、变更归档 | 已完成 |
 | Phase 6 | Apple 预览、多图对比、视频 AI 分析 | 已完成 |
+| Phase 7 | 本地 ONNX 子进程、Qwen3-VL、AMD/Ollama | 已完成 |
+
+---
+
+## Phase 7 — 本地推理与 AMD 加速 (v1.8.0–v1.8.3)
+
+### 任务
+
+- [x] LocalInferenceBridge + QwenVLCaptionEngine 子进程推理
+- [x] Provider 工厂：Local / Cloud / Ollama
+- [x] AMD：OllamaRuntimeService + Vulkan 环境
+- [x] 分析 JSON/OCR 解析增强；ARCHITECTURE_v1.8.3 归档
+
+### 验收标准
+
+- CPU/CUDA/AMD 三条路径可完成图片分析
+- 云端视频/GIF 单次 API；本地逐帧合并
+- CHANGELOG、DESIGN、USER_GUIDE 与 snapshots 已更新
 
 ---
 

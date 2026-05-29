@@ -8,6 +8,8 @@ interface ModelDownloadActionProps {
   status?: LocalModelStatusItem | null
   liveProgress?: { modelId: string; progress: number } | null
   busy: boolean
+  disabled?: boolean
+  disabledHint?: string
   onDownload: (modelId: string, kind: 'caption' | 'embedding') => void
 }
 
@@ -19,6 +21,8 @@ export function ModelDownloadAction({
   status,
   liveProgress,
   busy,
+  disabled = false,
+  disabledHint,
   onDownload
 }: ModelDownloadActionProps) {
   const ready = status?.ready ?? false
@@ -38,13 +42,16 @@ export function ModelDownloadAction({
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          disabled={downloading}
+          disabled={downloading || disabled}
           onClick={() => onDownload(modelId, kind)}
           className="px-4 py-2 rounded-apple-sm bg-[var(--color-accent)] text-white text-sm disabled:opacity-50"
         >
           {downloading ? '下载中…' : `下载模型${sizeHint}`}
         </button>
-        {!downloading && (
+        {!downloading && disabled && disabledHint && (
+          <span className="text-xs text-orange-500">{disabledHint}</span>
+        )}
+        {!downloading && !disabled && (
           <span className="text-xs text-orange-500">尚未下载，请先下载后再使用</span>
         )}
       </div>

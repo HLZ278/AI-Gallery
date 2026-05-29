@@ -1,7 +1,13 @@
 {
   "labels": {
     "cpu": "纯 CPU",
-    "cuda": "CUDA（NVIDIA GPU）"
+    "cuda": "CUDA（NVIDIA GPU）",
+    "amd": "AMD GPU（Ollama + Vulkan）"
+  },
+  "preferenceLabels": {
+    "wasm": "纯 CPU",
+    "cuda": "CUDA（NVIDIA GPU）",
+    "amd": "AMD GPU（Ollama + Vulkan）"
   },
   "hints": {
     "cuda_unsupported_platform": "当前系统不支持 CUDA。Windows 请改用纯 CPU；Linux 需安装 CUDA 12 运行时。",

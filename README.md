@@ -6,7 +6,7 @@
 
 Windows 桌面智能图库 · 本地 Qwen3-VL 理解 + BGE 语义检索 · 可选云端增强
 
-[![Version](https://img.shields.io/badge/version-1.8.2-blue)](package.json)
+[![Version](https://img.shields.io/badge/version-1.8.3-blue)](package.json)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows)](package.json)
 [![License](https://img.shields.io/badge/license-MIT-green)](config/LICENSE.txt)
 [![Electron](https://img.shields.io/badge/Electron-34-47848F?logo=electron)](package.json)
@@ -30,7 +30,7 @@ Windows 桌面智能图库 · 本地 Qwen3-VL 理解 + BGE 语义检索 · 可�
 
 | 能力 | 说明 |
 |------|------|
-| **本地优先，零 token 建库** | 默认用本机 ONNX（Qwen3-VL + BGE 中文）完成分析与向量，扫描图库不消耗大模型 API |
+| **本地优先，零 token 建库** | 默认本机 Qwen3-VL（ONNX 或 AMD/Ollama）+ BGE 中文向量，扫描图库不消耗大模型 API |
 | **三种搜索方式** | 关键词 FTS · **向量语义**（理解画面含义）· AI 智能匹配 |
 | **可选云端增强** | 人物 / IP / 梗图等难例，一键用 DashScope 等 OpenAI 兼容 API 重新分析 |
 | **真·图库工作流** | 多目录监控、增量扫描、GIF/视频抽帧、实况/连拍、EXIF 与拍摄地 |
@@ -61,14 +61,16 @@ Windows 桌面智能图库 · 本地 Qwen3-VL 理解 + BGE 语义检索 · 可�
 ```mermaid
 flowchart LR
   A[添加图库文件夹] --> B[扫描 / 监控变更]
-  B --> C{分析模式}
-  C -->|默认| D[本地 Qwen3-VL 描述]
-  C -->|可选| E[云端视觉大模型]
-  D --> F[BGE 向量索引]
-  E --> F
-  F --> G[(SQLite + FTS5)]
-  G --> H[语义 / 关键词 / AI 搜索]
-  H --> I[预览 · 编辑 · 局域网分享]
+  B --> C[开始分析]
+  C --> D{分析模式}
+  D -->|CPU/CUDA| E[ONNX Qwen3-VL]
+  D -->|AMD| F[Ollama Qwen3-VL]
+  D -->|可选| G[云端视觉大模型]
+  E --> H[BGE 向量索引]
+  F --> H
+  G --> H
+  H --> I[(SQLite + FTS5)]
+  I --> J[语义 / 关键词 / AI 搜索]
 ```
 
 ---
@@ -102,8 +104,11 @@ npm install
 npm run dev
 ```
 
-首次启动：打开 **设置 → 本地端侧分析**，下载 **Qwen3-VL 2B**（推荐）与 **BGE 中文向量**。  
-无法访问 Hugging Face 时，在设置中填写镜像：`https://hf-mirror.com`（公开 ONNX 模型一般**无需 HF 账号**）。
+首次启动：打开 **设置 → 本地端侧分析**，选择推理设备并下载模型。  
+- **纯 CPU / CUDA**：下载 ONNX **Qwen3-VL 2B** + **BGE 中文向量**  
+- **AMD GPU**：先 **配置 Ollama 运行环境**，再下载 **Qwen3-VL 2B Instruct**（Ollama）与 BGE  
+
+无法访问 Hugging Face 时，在设置中填写镜像：`https://hf-mirror.com`（ONNX 公开模型一般**无需 HF 账号**）。
 
 ### 打包安装包
 
@@ -111,7 +116,9 @@ npm run dev
 npm run pack
 ```
 
-安装包输出在 `release/`，产品名 **AI图库**。模型默认缓存在 **安装目录下的 `models/`**（非 C 盘 AppData）。
+安装包输出在 `release/`，产品名 **AI图库**。  
+- ONNX 模型：`{安装目录}/models/`  
+- Ollama 模型（AMD 模式）：`{安装目录}/ollama-models/`
 
 ---
 
@@ -119,11 +126,14 @@ npm run pack
 
 型号由 [`config/local-models.json`](config/local-models.json) 注册，升级型号无需改业务代码：
 
-| 模型 | 用途 | 体积（约） |
-|------|------|------------|
-| **Qwen3-VL 2B**（默认推荐） | 画面描述、结构化 JSON 字段 | ~4.5GB |
-| Qwen2.5-VL 3B | OCR / 细节更强 | ~5.5GB |
-| BGE-small-zh | 中文语义向量 | ~100MB |
+| 模型 | 用途 | 路径 / 体积（约） |
+|------|------|-------------------|
+| **Qwen3-VL 2B**（ONNX，CPU/CUDA） | 画面描述 | `models/` ~4.5GB |
+| **Qwen3-VL 2B Instruct**（Ollama，AMD） | 画面描述 | `ollama-models/` ~1.9GB |
+| Qwen2.5-VL 3B | OCR / 细节更强 | 同上 registry |
+| BGE-small-zh | 中文语义向量 | `models/` ~100MB |
+
+Registry：[`config/local-models.json`](config/local-models.json)、[`config/ollama-runtime.json`](config/ollama-runtime.json)
 
 云端增强需自行配置 OpenAI 兼容 API（如阿里云 DashScope `qwen3.5-plus`），详见 [用户指南](docs/USER_GUIDE.md)。
 
@@ -152,6 +162,7 @@ Electron · React · TypeScript · better-sqlite3 (FTS5) · @huggingface/transfo
 |------|------|
 | [用户指南](docs/USER_GUIDE.md) | 安装、配置、建库、搜索、云端增强 |
 | [设计文档](docs/DESIGN.md) | 架构与数据流 |
+| [分析 API 归档](docs/archive/snapshots/ARCHITECTURE_v1.8.3.md) | 云端/本地/Ollama 调用链路 |
 | [开发计划](docs/DEV_PLAN.md) | 路线图 |
 | [CHANGELOG](docs/archive/CHANGELOG.md) | 版本记录 |
 | [待办](docs/todo.md) | 已知问题与计划 |
@@ -171,7 +182,7 @@ Electron · React · TypeScript · better-sqlite3 (FTS5) · @huggingface/transfo
 
 - 产品显示名：**AI图库**  
 - 用户配置与数据库：`%APPDATA%/YourPicture`（历史兼容目录名）  
-- 当前版本：**v1.8.2** — DirectML GPU 加速、图库手动分析、体验优化  
+- 当前版本：**v1.8.3** — AMD/Ollama 加速、推理设备简化、分析解析增强  
 
 ## 许可证
 

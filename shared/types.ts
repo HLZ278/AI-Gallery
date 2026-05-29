@@ -6,7 +6,7 @@ export type AnalysisMode = 'local' | 'cloud'
 
 export type EmbeddingProviderType = 'local' | 'cloud'
 
-export type InferenceDevicePreference = 'wasm' | 'cuda'
+export type InferenceDevicePreference = 'wasm' | 'cuda' | 'amd'
 
 export interface LocalModelDtypeConfig {
   embed_tokens?: string
@@ -29,6 +29,9 @@ export interface LocalModelEntry {
   recommended?: boolean
   recommendedConcurrency?: number
   estimatedSizeMb?: number
+  /** AMD/Ollama 视觉模型名（与 ONNX 权重分离存储，互不污染） */
+  ollamaModel?: string
+  ollamaEstimatedSizeMb?: number
   dimensions?: number
   deprecated?: boolean
 }
@@ -51,10 +54,45 @@ export interface LocalModelStatusItem {
 
 export interface LocalModelStatus {
   modelsDir: string
+  ollamaModelsDir?: string
   cacheSizeMb: number
   effectiveRemoteHost: string
   items: LocalModelStatusItem[]
   allReady: boolean
+  ollama?: OllamaRuntimeStatus
+}
+
+export type OllamaSetupPhase =
+  | 'idle'
+  | 'downloading_installer'
+  | 'installing'
+  | 'starting'
+  | 'environment_ready'
+  | 'pulling_model'
+  | 'ready'
+  | 'error'
+
+export interface OllamaVisionModelEntry {
+  tag: string
+  label: string
+  estimatedSizeMb?: number
+  recommended?: boolean
+}
+
+export interface OllamaRuntimeStatus {
+  installed: boolean
+  running: boolean
+  /** Ollama 已安装且服务可访问（不含模型） */
+  runtimeReady: boolean
+  modelReady: boolean
+  ollamaModelsDir: string
+  installPath: string
+  baseUrl: string
+  visionModel: string | null
+  phase: OllamaSetupPhase
+  progress: number
+  message: string
+  error?: string
 }
 
 export interface AppConfig {
@@ -91,8 +129,10 @@ export interface AppConfig {
     hfToken: string
     /** 为 true 时忽略系统环境变量中的 HF_TOKEN，避免无效 token 导致 401 */
     ignoreEnvHfToken: boolean
-    /** wasm：纯 CPU；cuda：NVIDIA GPU（仅 Linux 预构建支持） */
+    /** wasm：纯 CPU；cuda：NVIDIA GPU（Linux）；amd：Ollama + Vulkan（AMD GPU） */
     inferenceDevice: InferenceDevicePreference
+    /** AMD 模式下的 Ollama 视觉模型 tag，来自 config/ollama-runtime.json */
+    ollamaVisionModelTag: string
   }
   embedding: {
     enabled: boolean
@@ -440,6 +480,13 @@ export interface IpcApi {
     download: (modelId: string, kind: 'caption' | 'embedding') => Promise<void>
     cancelDownload: () => Promise<void>
     onDownloadProgress: (callback: (payload: { modelId: string; progress: number }) => void) => () => void
+  }
+  ollama: {
+    getStatus: () => Promise<OllamaRuntimeStatus>
+    getVisionCatalog: () => Promise<OllamaVisionModelEntry[]>
+    setup: () => Promise<OllamaRuntimeStatus>
+    pullModel: (modelTag: string) => Promise<OllamaRuntimeStatus>
+    onSetupProgress: (callback: (status: OllamaRuntimeStatus) => void) => () => void
   }
   embedding: {
     backfill: () => Promise<{ indexed: number; failed: number; skipped?: number }>

@@ -94,6 +94,17 @@ const api = {
       return () => ipcRenderer.removeListener('localModel:downloadProgress', handler)
     }
   },
+  ollama: {
+    getStatus: () => ipcRenderer.invoke('ollama:getStatus'),
+    getVisionCatalog: () => ipcRenderer.invoke('ollama:getVisionCatalog'),
+    setup: () => ipcRenderer.invoke('ollama:setup'),
+    pullModel: (modelTag: string) => ipcRenderer.invoke('ollama:pullModel', modelTag),
+    onSetupProgress: (callback: (status: import('../shared/types').OllamaRuntimeStatus) => void) => {
+      const handler = (_: unknown, status: import('../shared/types').OllamaRuntimeStatus) => callback(status)
+      ipcRenderer.on('ollama:setupProgress', handler)
+      return () => ipcRenderer.removeListener('ollama:setupProgress', handler)
+    }
+  },
   lanServer: {
     getStatus: () => ipcRenderer.invoke('lanServer:getStatus'),
     regenerateToken: () => ipcRenderer.invoke('lanServer:regenerateToken'),

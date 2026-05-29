@@ -12,6 +12,13 @@
 - [x] 文档同步、搜索体验、详情面板、设置项、工作流、错误反馈
 - [x] 虚拟滚动 MediaGrid、AI 编辑分页、批量重试、chokidar 监控
 
+## v1.8.3 已完成（2026-05-29）
+
+- [x] AMD GPU：Ollama + Vulkan 视觉分析路径
+- [x] 移除 DirectML/auto；GPU 失败显式报错
+- [x] JSON/OCR 解析增强、analysis-limits 配置
+- [x] 文档 ARCHITECTURE_v1.8.3、CHANGELOG、USER_GUIDE 同步
+
 ## v1.8.2 已完成（2026-05-29）
 
 - [x] DirectML GPU 加速（Windows AMD/Intel，失败回退 CPU）

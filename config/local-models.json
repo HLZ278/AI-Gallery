@@ -10,6 +10,8 @@
       "maxNewTokens": 768,
       "imageEdge": 448,
       "estimatedSizeMb": 4500,
+      "ollamaModel": "qwen3-vl:2b-instruct",
+      "ollamaEstimatedSizeMb": 1900,
       "dtype": {
         "embed_tokens": "fp32",
         "vision_encoder": "fp32",
@@ -25,6 +27,8 @@
       "maxNewTokens": 768,
       "imageEdge": 448,
       "estimatedSizeMb": 5500,
+      "ollamaModel": "qwen2.5vl:3b",
+      "ollamaEstimatedSizeMb": 3200,
       "dtype": {
         "embed_tokens": "fp32",
         "vision_encoder": "fp32",

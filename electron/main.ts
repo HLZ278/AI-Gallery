@@ -11,6 +11,7 @@ import { setMainConfigLoader } from './backend/infra/ActiveConfig'
 import { syncReadyMarkersFromCache } from './backend/services/LocalModelReady'
 import { localInferenceBridge } from './backend/services/LocalInferenceBridge'
 import { localModelService } from './backend/services/LocalModelService'
+import { ollamaRuntimeService } from './backend/services/OllamaRuntimeService'
 import { migrateModelsCacheFromLegacy } from './backend/services/ModelsCacheMigration'
 
 setMainConfigLoader(() => configService.load())
@@ -100,12 +101,14 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   localInferenceBridge.shutdown()
+  ollamaRuntimeService.shutdown()
 })
 
 app.on('window-all-closed', () => {
   void libraryWatcherService.stop()
   lanServerService.stop()
   localInferenceBridge.shutdown()
+  ollamaRuntimeService.shutdown()
   closeDb()
   if (process.platform !== 'darwin') app.quit()
 })

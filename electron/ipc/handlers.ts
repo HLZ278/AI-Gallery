@@ -13,6 +13,8 @@ import { libraryWatcherService } from '../backend/services/LibraryWatcherService
 import { testLlmConnection } from '../backend/services/ConfigTestService'
 import { aboutService } from '../backend/services/AboutService'
 import { localModelService } from '../backend/services/LocalModelService'
+import { ollamaRuntimeService } from '../backend/services/OllamaRuntimeService'
+import { listOllamaVisionCatalog } from '../backend/services/CaptionRuntime'
 import { localInferenceBridge } from '../backend/services/LocalInferenceBridge'
 import { resetEmbeddingProviderCache } from '../backend/infra/embedding/EmbeddingProviderFactory'
 import { resetTransformersEnv } from '../backend/infra/TransformersEnv'
@@ -117,6 +119,11 @@ export function registerIpcHandlers(): void {
   })
   ipcMain.handle('localModel:cancel', () => localModelService.cancelDownload())
 
+  ipcMain.handle('ollama:getStatus', () => ollamaRuntimeService.getStatus())
+  ipcMain.handle('ollama:getVisionCatalog', () => listOllamaVisionCatalog())
+  ipcMain.handle('ollama:setup', async () => ollamaRuntimeService.setup())
+  ipcMain.handle('ollama:pullModel', async (_e, modelTag: string) => ollamaRuntimeService.pullVisionModel(modelTag))
+
   ipcMain.handle('embedding:backfill', async () => embeddingService.backfillMissing())
   ipcMain.handle('embedding:rebuild', async () => embeddingService.rebuildAll())
   ipcMain.handle('embedding:stats', () => embeddingService.getStats())
@@ -159,6 +166,12 @@ export function registerIpcHandlers(): void {
   localModelService.onDownloadProgress((payload) => {
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send('localModel:downloadProgress', payload)
+    }
+  })
+
+  ollamaRuntimeService.onSetupProgress((status) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('ollama:setupProgress', status)
     }
   })
 }
