@@ -101,7 +101,7 @@ export function registerIpcHandlers(): void {
   })
   ipcMain.handle('media:openFile', (_e, filePath: string) => mediaService.openFile(filePath))
 
-  ipcMain.handle('analysis:start', async () => analysisQueue.start())
+  ipcMain.handle('analysis:start', async (_e, libraryId?: string) => analysisQueue.start(libraryId))
   ipcMain.handle('analysis:stop', () => analysisQueue.stop())
   ipcMain.handle('analysis:pause', () => analysisQueue.pause())
   ipcMain.handle('analysis:getProgress', () => analysisQueue.getProgress())

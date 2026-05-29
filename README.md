@@ -6,7 +6,7 @@
 
 Windows 桌面智能图库 · 本地 Qwen3-VL 理解 + BGE 语义检索 · 可选云端增强
 
-[![Version](https://img.shields.io/badge/version-1.8.1-blue)](package.json)
+[![Version](https://img.shields.io/badge/version-1.8.2-blue)](package.json)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows)](package.json)
 [![License](https://img.shields.io/badge/license-MIT-green)](config/LICENSE.txt)
 [![Electron](https://img.shields.io/badge/Electron-34-47848F?logo=electron)](package.json)
@@ -171,7 +171,7 @@ Electron · React · TypeScript · better-sqlite3 (FTS5) · @huggingface/transfo
 
 - 产品显示名：**AI图库**  
 - 用户配置与数据库：`%APPDATA%/YourPicture`（历史兼容目录名）  
-- 当前版本：**v1.8.1** — 本地推理子进程（UI 不阻塞）、端侧分析、向量索引、局域网传图  
+- 当前版本：**v1.8.2** — DirectML GPU 加速、图库手动分析、体验优化  
 
 ## 许可证
 

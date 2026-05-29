@@ -1,6 +1,7 @@
 import { Routes, Route, NavLink } from 'react-router-dom'
 import { TitleBar } from '../components/TitleBar'
 import { Sidebar } from '../components/Sidebar'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ToastContainer } from '../components/ToastContainer'
 import { LibraryPage } from '../pages/LibraryPage'
 import { ImportPage } from '../pages/ImportPage'
@@ -10,12 +11,14 @@ import { ImageEditPage } from '../pages/ImageEditPage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { AboutPage } from '../pages/AboutPage'
 import { useAppInit } from '../hooks/useAppInit'
+import { useThemeSync } from '../hooks/useThemeSync'
 import { useAppStore } from '../store/appStore'
 
 export default function App() {
   const initError = useAppStore((s) => s.initError)
 
   useAppInit()
+  useThemeSync()
 
   return (
     <div className="flex flex-col h-full bg-[var(--color-bg)] text-[var(--color-text)]">
@@ -40,6 +43,7 @@ export default function App() {
         </main>
       </div>
       <ToastContainer />
+      <ConfirmDialog />
     </div>
   )
 }

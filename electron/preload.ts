@@ -48,7 +48,7 @@ const api = {
     openFile: (filePath: string) => ipcRenderer.invoke('media:openFile', filePath)
   },
   analysis: {
-    start: () => ipcRenderer.invoke('analysis:start'),
+    start: (libraryId?: string) => ipcRenderer.invoke('analysis:start', libraryId),
     stop: () => ipcRenderer.invoke('analysis:stop'),
     pause: () => ipcRenderer.invoke('analysis:pause'),
     getProgress: () => ipcRenderer.invoke('analysis:getProgress'),

@@ -1,6 +1,6 @@
 import chokidar, { type FSWatcher } from 'chokidar'
 import { getDb } from '../db/DatabaseManager'
-import { importSingleFile } from './ImportHelper'
+import { importSingleFile, shouldQueueAnalysis } from './ImportHelper'
 import { analysisQueue } from '../domain/AnalysisQueue'
 import { mediaService } from './MediaService'
 import { libraryService } from './LibraryService'
@@ -28,6 +28,7 @@ export class LibraryWatcherService {
     })
 
     this.watcher.on('add', (filePath) => this.scheduleImport(filePath))
+    this.watcher.on('change', (filePath) => this.scheduleImport(filePath))
     this.watcher.on('unlink', (filePath) => {
       void this.handleRemoved(filePath)
     })
@@ -56,8 +57,8 @@ export class LibraryWatcherService {
     const libraryId = this.resolveLibraryId(filePath)
     if (!libraryId) return
     try {
-      const added = await importSingleFile(libraryId, filePath)
-      if (added) await analysisQueue.start()
+      const result = await importSingleFile(libraryId, filePath)
+      if (shouldQueueAnalysis(result)) await analysisQueue.start()
     } catch (err) {
       console.error('Library watcher import failed:', filePath, err)
     }

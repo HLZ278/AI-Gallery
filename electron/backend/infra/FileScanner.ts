@@ -187,12 +187,18 @@ export class MediaRepository {
   }
 
   /** 原子认领下一张待分析图片，避免多线程重复处理 */
-  claimNextPending(): { id: string; file_path: string } | null {
+  claimNextPending(libraryId?: string): { id: string; file_path: string } | null {
     const db = getDb()
     return db.transaction(() => {
-      const row = db
-        .prepare(`SELECT id, file_path FROM media_items WHERE analysis_status = 'pending' ORDER BY taken_at ASC LIMIT 1`)
-        .get() as { id: string; file_path: string } | undefined
+      const row = libraryId
+        ? (db
+            .prepare(
+              `SELECT id, file_path FROM media_items WHERE analysis_status = 'pending' AND library_id = ? ORDER BY taken_at ASC LIMIT 1`
+            )
+            .get(libraryId) as { id: string; file_path: string } | undefined)
+        : (db
+            .prepare(`SELECT id, file_path FROM media_items WHERE analysis_status = 'pending' ORDER BY taken_at ASC LIMIT 1`)
+            .get() as { id: string; file_path: string } | undefined)
       if (!row) return null
       const result = db
         .prepare(`UPDATE media_items SET analysis_status = 'processing' WHERE id = ? AND analysis_status = 'pending'`)
@@ -201,10 +207,12 @@ export class MediaRepository {
     })()
   }
 
-  hasPending(): boolean {
-    const row = getDb()
-      .prepare(`SELECT 1 FROM media_items WHERE analysis_status = 'pending' LIMIT 1`)
-      .get()
+  hasPending(libraryId?: string): boolean {
+    const row = libraryId
+      ? getDb()
+          .prepare(`SELECT 1 FROM media_items WHERE analysis_status = 'pending' AND library_id = ? LIMIT 1`)
+          .get(libraryId)
+      : getDb().prepare(`SELECT 1 FROM media_items WHERE analysis_status = 'pending' LIMIT 1`).get()
     return Boolean(row)
   }
 

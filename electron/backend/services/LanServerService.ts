@@ -12,7 +12,7 @@ import { buildLanViewPageHtml } from '../infra/lanViewPage'
 import { buildLanPageUrl } from '../../../shared/lanUrls'
 import { configService } from './ConfigService'
 import { libraryService } from './LibraryService'
-import { importSingleFile } from './ImportHelper'
+import { importSingleFile, shouldQueueAnalysis } from './ImportHelper'
 import { analysisQueue } from '../domain/AnalysisQueue'
 import { APP_DISPLAY_NAME } from '../../../shared/appMeta'
 import type { LanServerStatus } from '../../../shared/types'
@@ -390,12 +390,12 @@ export class LanServerService {
     const targetPath = uniqueUploadPath(uploadDir, fileName)
     writeFileSync(targetPath, body)
 
-    const added = await importSingleFile(libraryId, targetPath)
-    if (added) await analysisQueue.start()
+    const result = await importSingleFile(libraryId, targetPath)
+    if (shouldQueueAnalysis(result)) await analysisQueue.start()
 
-    this.notifyUploadComplete({ libraryId, fileName, imported: added })
+    this.notifyUploadComplete({ libraryId, fileName, imported: result.action !== 'skipped' })
 
-    json(res, 200, { ok: true, imported: added, path: targetPath })
+    json(res, 200, { ok: true, imported: result.action !== 'skipped', path: targetPath })
   }
 
   private notifyUploadComplete(payload: { libraryId: string; fileName: string; imported: boolean }): void {

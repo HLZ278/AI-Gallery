@@ -2,6 +2,25 @@
 
 > 每一次功能变动均记录于此。版本快照见 `versions/` 与 `snapshots/`。
 
+## [1.8.2] - 2026-05-29
+
+### 新增
+
+- **DirectML GPU 加速**：Windows 下 `auto`/`dml` 使用 AMD/Intel 显卡 ONNX DirectML，Qwen VL 与 BGE 失败自动回退 CPU
+- 图库页 **开始分析** 按钮（按库启动待分析队列）；展示 **正在分析** 数量
+- 自定义确认框、跟随系统主题、ImportProgressBar 等 UX 组件
+
+### 变更
+
+- 图库 **扫描不再自动启动分析**，由用户手动触发
+- `ImportHelper` 返回 `{ action: 'added' | 'updated' | 'skipped' }`；Watcher 监听 `change` 事件
+- 默认推理设备改为 `auto`（Windows 优先 DML）
+
+### 修复
+
+- 文件覆盖后 hash 更新但未入分析队列
+- 搜索页图库列表过期、图库统计不随分析刷新
+
 ## [1.8.1] - 2026-05-28
 
 ### 修复

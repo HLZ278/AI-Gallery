@@ -1,3 +1,4 @@
+import { platform } from 'process'
 import type { InferenceDevicePreference } from '../../../shared/types'
 
 const LOG_PREFIX = '[LocalInference]'
@@ -13,22 +14,34 @@ export function toTransformersOnnxDevice(device: ResolvedInferenceDevice): 'cpu'
   return device
 }
 
-/** 解析用户配置；默认 cpu。Windows 下 dml 对 Qwen VL generate 不稳定，统一走 cpu */
+/** 解析用户配置；auto 在 Windows 优先 DirectML（AMD/Intel 独显/核显），失败时由加载逻辑回退 CPU */
 export function resolveInferenceDevicePreference(
   preference: InferenceDevicePreference | undefined
 ): ResolvedInferenceDevice {
-  if (preference === 'cuda') return 'cuda'
-  if (preference === 'dml') {
-    logInferenceDevice('inferenceDevice=dml 已映射为 cpu（Qwen VL 在 DirectML 上易失败）')
-    return 'cpu'
+  switch (preference) {
+    case 'cuda':
+      return 'cuda'
+    case 'dml':
+      return 'dml'
+    case 'auto':
+      if (platform === 'win32') return 'dml'
+      if (platform === 'linux') return 'cuda'
+      return 'cpu'
+    case 'wasm':
+    default:
+      return 'cpu'
   }
-  return 'cpu'
 }
 
 export function inferenceDeviceFallbackOrder(primary: ResolvedInferenceDevice): ResolvedInferenceDevice[] {
-  const all: ResolvedInferenceDevice[] = ['cpu', 'cuda', 'dml']
-  const rest = all.filter((d) => d !== primary)
-  return [primary, ...rest]
+  switch (primary) {
+    case 'dml':
+      return ['dml', 'cpu']
+    case 'cuda':
+      return ['cuda', 'cpu']
+    default:
+      return ['cpu']
+  }
 }
 
 export function logInferenceDevice(message: string, extra?: unknown): void {
@@ -36,12 +49,15 @@ export function logInferenceDevice(message: string, extra?: unknown): void {
   else console.log(LOG_PREFIX, message)
 }
 
-/** DirectML 在 Qwen VL generate 阶段常见的无效参数错误 */
+/** DirectML 在 Qwen VL 加载/推理阶段常见的错误 */
 export function isDmlRuntimeInferenceError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err)
   return (
     msg.includes('DmlExecutionProvider') ||
+    msg.includes('DirectML') ||
     msg.includes('MultiHeadAttention') ||
-    msg.includes('80070057')
+    msg.includes('80070057') ||
+    msg.includes("Can't append execution provider: dml") ||
+    msg.includes('Unsupported device')
   )
 }

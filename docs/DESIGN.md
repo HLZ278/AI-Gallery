@@ -48,6 +48,11 @@ Apple 风格 Design Token：圆角 12px、毛玻璃侧边栏、#007AFF 强调色
 
 页面：搜索、文生图、AI 编辑、图库、导入、设置。
 
+### v1.8.2 变更
+
+- **DirectML 加速**：Windows `auto`/`dml` 启用 GPU 推理，失败回退 CPU
+- **图库工作流**：扫描后手动分析；展示 processing 统计
+
 ### v1.8.1 变更
 
 - **推理子进程**：`LocalInferenceBridge` fork `localInferenceWorker`，主进程不加载 transformers；`sendRequest` / `ensureStarted` 避免启动死锁

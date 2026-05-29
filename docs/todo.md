@@ -12,6 +12,12 @@
 - [x] 文档同步、搜索体验、详情面板、设置项、工作流、错误反馈
 - [x] 虚拟滚动 MediaGrid、AI 编辑分页、批量重试、chokidar 监控
 
+## v1.8.2 已完成（2026-05-29）
+
+- [x] DirectML GPU 加速（Windows AMD/Intel，失败回退 CPU）
+- [x] 图库手动开始分析、正在分析统计、扫描进度
+- [x] ImportHelper action、Watcher change、主题 system、ConfirmDialog
+
 ## v1.8.1 已完成（2026-05-28）
 
 - [x] LocalInferenceBridge + localInferenceWorker 子进程推理

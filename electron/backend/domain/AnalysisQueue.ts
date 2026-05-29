@@ -21,6 +21,7 @@ export class AnalysisQueue {
   private listeners: ProgressCallback[] = []
   private processingItems = new Map<string, string>()
   private enhanceQueue: QueuedJob[] = []
+  private libraryFilter: string | null = null
 
   onProgress(cb: ProgressCallback): () => void {
     this.listeners.push(cb)
@@ -75,11 +76,12 @@ export class AnalysisQueue {
     }
   }
 
-  async start(): Promise<void> {
+  async start(libraryId?: string): Promise<void> {
     if (this.running) {
       if (this.stopRequested) return
       return
     }
+    this.libraryFilter = libraryId ?? null
     this.stopRequested = false
     this.running = true
     void this.processLoop()
@@ -176,7 +178,7 @@ export class AnalysisQueue {
         const maxConcurrency = this.getMaxConcurrency()
 
         while (inFlight.size < maxConcurrency && this.running && !this.stopRequested) {
-          const item = mediaRepository.claimNextPending()
+          const item = mediaRepository.claimNextPending(this.libraryFilter ?? undefined)
           if (!item) break
 
           const queuedMode = this.dequeueMode(item.id)
@@ -194,7 +196,7 @@ export class AnalysisQueue {
         }
 
         if (inFlight.size === 0) {
-          if (!mediaRepository.hasPending()) break
+          if (!mediaRepository.hasPending(this.libraryFilter ?? undefined)) break
           await sleep(100)
           continue
         }
@@ -210,6 +212,7 @@ export class AnalysisQueue {
       }
       this.running = false
       this.stopRequested = false
+      this.libraryFilter = null
       this.emit()
     }
   }

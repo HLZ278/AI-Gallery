@@ -8,7 +8,7 @@ import { configService } from './ConfigService'
 import { imageEditClient } from '../infra/ImageEditClient'
 import { moveFileSync } from '../infra/fileMove'
 import { fileScanner, thumbnailGenerator, mediaRepository } from '../infra/FileScanner'
-import { importSingleFile } from './ImportHelper'
+import { importSingleFile, shouldQueueAnalysis } from './ImportHelper'
 import { analysisQueue } from '../domain/AnalysisQueue'
 import { imageEditSessionService } from './ImageEditSessionService'
 import { mapMediaRow, MEDIA_JOIN } from '../domain/MediaMapper'
@@ -211,14 +211,14 @@ export class ImageEditService {
     moveFileSync(pending.tempFilePath, targetPath)
     this.pending.delete(editId)
 
-    const imported = await importSingleFile(pending.libraryId, targetPath)
-    if (imported) await analysisQueue.start()
+    const result = await importSingleFile(pending.libraryId, targetPath)
+    if (shouldQueueAnalysis(result)) await analysisQueue.start()
 
     return {
       filePath: targetPath,
       libraryId: pending.libraryId,
       libraryName: pending.libraryName,
-      imported
+      imported: result.action === 'added'
     }
   }
 

@@ -1,19 +1,24 @@
 import { getDb } from '../db/DatabaseManager'
 import { configService } from './ConfigService'
 import { fileScanner, thumbnailGenerator, mediaRepository } from '../infra/FileScanner'
+import type { ImportFileResult } from '../../../shared/types'
 
-export async function importSingleFile(libraryId: string, filePath: string): Promise<boolean> {
+export function shouldQueueAnalysis(result: ImportFileResult): boolean {
+  return result.action === 'added' || result.action === 'updated'
+}
+
+export async function importSingleFile(libraryId: string, filePath: string): Promise<ImportFileResult> {
   const config = configService.load()
   const scanned = await fileScanner.analyzeFile(filePath)
-  if (!scanned) return false
+  if (!scanned) return { action: 'skipped' }
 
   const existing = mediaRepository.findByPath(filePath)
   if (existing) {
     if (config.analysis.skipIfHashUnchanged && existing.file_hash === scanned.fileHash && existing.analysis_status === 'done') {
-      return false
+      return { action: 'skipped' }
     }
     mediaRepository.updateHashAndStatus(existing.id, scanned.fileHash, 'pending')
-    return false
+    return { action: 'updated' }
   }
 
   const mediaId = mediaRepository.insertMedia(libraryId, scanned, null, 'pending')
@@ -21,5 +26,5 @@ export async function importSingleFile(libraryId: string, filePath: string): Pro
   if (thumb) {
     getDb().prepare('UPDATE media_items SET thumb_path = ? WHERE id = ?').run(thumb, mediaId)
   }
-  return true
+  return { action: 'added' }
 }

@@ -91,7 +91,7 @@ export interface AppConfig {
     hfToken: string
     /** 为 true 时忽略系统环境变量中的 HF_TOKEN，避免无效 token 导致 401 */
     ignoreEnvHfToken: boolean
-    /** auto/wasm：ONNX CPU；cuda：NVIDIA；dml 在桌面端会映射为 CPU（Qwen VL 勿用 DirectML） */
+    /** auto：Windows 优先 DirectML（AMD/Intel GPU）；wasm：纯 CPU；cuda：NVIDIA；dml：强制 DirectML，失败回退 CPU */
     inferenceDevice: InferenceDevicePreference
   }
   embedding: {
@@ -166,6 +166,7 @@ export interface Library {
   mediaCount?: number
   analyzedCount?: number
   pendingCount?: number
+  processingCount?: number
   totalSize?: number
 }
 
@@ -229,6 +230,12 @@ export interface SearchResult {
   searchMode?: SearchMode
   llmReason?: string
   vectorScoreMap?: Record<string, number>
+}
+
+export type ImportFileAction = 'added' | 'updated' | 'skipped'
+
+export interface ImportFileResult {
+  action: ImportFileAction
 }
 
 export interface ImportProgress {
@@ -419,7 +426,7 @@ export interface IpcApi {
     openFile: (filePath: string) => Promise<void>
   }
   analysis: {
-    start: () => Promise<void>
+    start: (libraryId?: string) => Promise<void>
     stop: () => Promise<void>
     pause: () => Promise<void>
     retryAllFailed: () => Promise<number>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import { AnalysisProgressPanel } from '../components/AnalysisProgressPanel'
+import { ImportProgressBar } from '../components/ImportProgressBar'
 import { LanTransferPanel } from '../components/LanTransferPanel'
 
 export function ImportPage() {
@@ -25,10 +26,6 @@ export function ImportPage() {
     }
   }
 
-  const progressPercent =
-    importProgress && importProgress.total > 0
-      ? Math.round((importProgress.processed / importProgress.total) * 100)
-      : 0
 
   return (
     <div className="flex flex-col h-full overflow-y-auto p-6 max-w-2xl">
@@ -76,20 +73,8 @@ export function ImportPage() {
       )}
 
       {importProgress && importProgress.phase !== 'done' && importProgress.phase !== 'analyzing' && (
-        <div className="mt-6 p-5 rounded-apple bg-[var(--color-card)] border border-[var(--color-border)]">
-          <div className="flex justify-between text-sm mb-2">
-            <span>{importProgress.message}</span>
-            <span>{progressPercent}%</span>
-          </div>
-          <div className="h-2 rounded-full bg-black/10 overflow-hidden">
-            <div
-              className="h-full bg-[var(--color-accent)] transition-all duration-300"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-          {importProgress.currentFile && (
-            <p className="text-xs text-[var(--color-muted)] mt-2 truncate">{importProgress.currentFile}</p>
-          )}
+        <div className="mt-6">
+          <ImportProgressBar progress={importProgress} />
         </div>
       )}
     </div>

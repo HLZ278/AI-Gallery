@@ -2,14 +2,20 @@ import { existsSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 import sharp from 'sharp'
 import type { AppConfig, LocalModelEntry } from '../../../shared/types'
-import { setWorkerActiveConfig } from '../infra/ActiveConfig'
+import { setWorkerActiveConfig, getActiveConfig } from '../infra/ActiveConfig'
 import {
   applyTransformersEnv,
   applyHfTokenForDownload,
   assertModelDownloadable,
   restoreHfTokenAfterDownload
 } from '../infra/TransformersEnv'
-import { isDmlRuntimeInferenceError } from '../infra/LocalInferenceDevice'
+import {
+  inferenceDeviceFallbackOrder,
+  isDmlRuntimeInferenceError,
+  logInferenceDevice,
+  resolveInferenceDevicePreference,
+  toTransformersOnnxDevice
+} from '../infra/LocalInferenceDevice'
 import { QwenVLCaptionEngine } from '../infra/analysis/QwenVLCaptionEngine'
 import { isQwenVLPipeline } from '../infra/analysis/QwenVLPipelines'
 import {
@@ -256,14 +262,37 @@ export class LocalInferenceWorkerRuntime {
     if (cached) return cached
     const entry = findEmbeddingModel(modelId)
     if (!entry) throw new Error(`未找到向量模型: ${modelId}`)
+
+    const preference = resolveInferenceDevicePreference(getActiveConfig().localModels.inferenceDevice)
+    const candidates = inferenceDeviceFallbackOrder(preference)
     await applyTransformersEnv()
     const { pipeline } = await import('@huggingface/transformers')
-    const pipe = await pipeline('feature-extraction', entry.hfRepo, {
-      cache_dir: getModelsCacheDir(),
-      device: 'cpu'
-    })
-    this.embeddingPipelines.set(modelId, pipe)
-    return pipe
+    const cacheDir = getModelsCacheDir()
+
+    let lastError: unknown
+    for (const device of candidates) {
+      const onnxDevice = toTransformersOnnxDevice(device)
+      try {
+        logInferenceDevice('loading embedding pipeline', { modelId, device: onnxDevice })
+        const pipe = await pipeline(entry.pipeline as 'feature-extraction', entry.hfRepo, {
+          cache_dir: cacheDir,
+          device: onnxDevice
+        })
+        this.embeddingPipelines.set(modelId, pipe)
+        logInferenceDevice('embedding pipeline ready', { modelId, device: onnxDevice })
+        return pipe
+      } catch (err) {
+        lastError = err
+        logInferenceDevice('embedding load failed, try fallback', {
+          modelId,
+          device: onnxDevice,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error(`向量模型加载失败: ${String(lastError)}`)
   }
 
   shutdown(): void {

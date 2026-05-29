@@ -162,7 +162,7 @@ export async function probeRepoFile(hfRepo: string, fileName = 'tokenizer_config
   const url = buildResolveUrl(hfRepo, fileName)
   applyHfTokenForDownload()
   try {
-    const headers: Record<string, string> = { 'User-Agent': 'PictureSearch/1.8.1 local-model-probe' }
+    const headers: Record<string, string> = { 'User-Agent': 'PictureSearch/1.8.2 local-model-probe' }
     const token = process.env.HF_TOKEN?.trim()
     if (token) headers.Authorization = `Bearer ${token}`
     log(`probe ${url}`)

@@ -16,6 +16,7 @@ import { useMediaGridShortcuts } from '../hooks/useMediaGridShortcuts'
 import { useNavigateToImageEdit } from '../hooks/useNavigateToImageEdit'
 import { useAppStore } from '../store/appStore'
 import { toast } from '../store/toastStore'
+import { confirmAction } from '../store/confirmStore'
 import { sortMediaItems, type MediaSortField, type MediaSortOrder } from '../utils/mediaSort'
 
 type ViewMode = 'grid' | 'timeline'
@@ -32,6 +33,7 @@ const mediaTypeOptions: { value: MediaType; label: string }[] = [
 
 export function SearchPage() {
   const libraries = useAppStore((s) => s.libraries)
+  const setLibraries = useAppStore((s) => s.setLibraries)
   const config = useAppStore((s) => s.config)
   const analysisProgress = useAppStore((s) => s.analysisProgress)
   const prevProcessingIdsRef = useRef<Set<string>>(new Set())
@@ -215,6 +217,16 @@ export function SearchPage() {
   }, [analysisProgress, refreshResults])
 
   useEffect(() => {
+    void window.api.library.list().then(setLibraries)
+  }, [setLibraries])
+
+  useEffect(() => {
+    if (libraryId && !libraries.some((lib) => lib.id === libraryId)) {
+      setLibraryId('')
+    }
+  }, [libraries, libraryId])
+
+  useEffect(() => {
     setLoading(true)
     window.api.search
       .query({ page: 1, pageSize: PAGE_SIZE })
@@ -348,13 +360,23 @@ export function SearchPage() {
         break
       }
       case 'removeFromDb': {
-        if (!confirm('从数据库移除此项？本地文件保留，重新扫描图库可再次导入并分析。')) return
+        const ok = await confirmAction({
+          message: '从数据库移除此项？本地文件保留，重新扫描图库可再次导入并分析。',
+          danger: true,
+          confirmLabel: '移除'
+        })
+        if (!ok) return
         await window.api.media.removeFromDb(item.id)
         await handleMediaRemoved(item.id)
         break
       }
       case 'deleteFromDisk': {
-        if (!confirm('确定从本地删除此文件？此操作不可恢复。')) return
+        const ok = await confirmAction({
+          message: '确定从本地删除此文件？此操作不可恢复。',
+          danger: true,
+          confirmLabel: '删除'
+        })
+        if (!ok) return
         await window.api.media.deleteFromDisk(item.id)
         await handleMediaRemoved(item.id)
         break

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { AppConfig, LocalModelStatus, LocalModelsRegistry } from '../../shared/types'
 import { toast } from '../store/toastStore'
+import { confirmAction } from '../store/confirmStore'
 import { useAppStore } from '../store/appStore'
+import { resolveTheme } from '../utils/theme'
 
 export function SettingsPage() {
   const config = useAppStore((s) => s.config)
@@ -111,12 +113,13 @@ export function SettingsPage() {
 
   const handleBackfill = () => runEmbedTask('backfill')
 
-  const handleRebuild = () => {
+  const handleRebuild = async () => {
     const isCloudEmbed = form?.embedding.provider === 'cloud'
     const warn = isCloudEmbed
       ? '将清空现有向量索引并全部重新建立，可能需要较长时间并消耗 API 额度，是否继续？'
       : '将清空现有向量索引并使用本地模型全部重新建立，是否继续？'
-    if (!confirm(warn)) return
+    const ok = await confirmAction({ message: warn, danger: true, confirmLabel: '重新建立' })
+    if (!ok) return
     runEmbedTask('rebuild')
   }
 
@@ -140,8 +143,7 @@ export function SettingsPage() {
   const handleSave = async () => {
     await window.api.config.save(form)
     setConfig(form)
-    if (form.ui.theme === 'dark') setTheme('dark')
-    else if (form.ui.theme === 'light') setTheme('light')
+    setTheme(resolveTheme(form.ui.theme))
     await refreshEmbedStats()
     setLanMsg('设置已保存，局域网服务已自动重启')
     setSaved(true)
@@ -303,13 +305,13 @@ export function SettingsPage() {
         </Field>
         <Field label="本地推理设备">
           <select
-            value={form.localModels?.inferenceDevice ?? 'wasm'}
+            value={form.localModels?.inferenceDevice ?? 'auto'}
             onChange={(e) => updateLocalModels('inferenceDevice', e.target.value)}
             className="field-input"
           >
-            <option value="auto">自动（推荐 CPU，兼容 Qwen VL）</option>
-            <option value="wasm">CPU（推荐，桌面端使用 ONNX CPU）</option>
-            <option value="dml">DirectML（将自动改用 CPU，Qwen VL 不推荐）</option>
+            <option value="auto">自动（Windows 优先 DirectML / AMD·Intel GPU，失败回退 CPU）</option>
+            <option value="dml">DirectML（AMD / Intel 显卡，失败回退 CPU）</option>
+            <option value="wasm">纯 CPU（最兼容，速度较慢）</option>
             <option value="cuda">CUDA（NVIDIA GPU）</option>
           </select>
         </Field>

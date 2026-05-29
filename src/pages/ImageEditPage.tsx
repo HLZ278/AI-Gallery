@@ -7,6 +7,7 @@ import { useAppStore } from '../store/appStore'
 import { buildImageEditSession, useImageEditStore } from '../store/imageEditStore'
 import { formatFileSize, mediaTypeLabel } from '../utils/formatMedia'
 import { toast } from '../store/toastStore'
+import { confirmAction } from '../store/confirmStore'
 
 function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -194,7 +195,12 @@ export function ImageEditPage() {
   }
 
   const handleOverwrite = async (messageId: string, editId: string) => {
-    if (!confirm('确定覆盖第一张源图？原文件将被替换并重新分析。')) return
+    const ok = await confirmAction({
+      message: '确定覆盖第一张源图？原文件将被替换并重新分析。',
+      danger: true,
+      confirmLabel: '覆盖'
+    })
+    if (!ok) return
     setDecisionBusyId(editId)
     try {
       const overwriteResult = await window.api.imageEdit.overwrite(editId)

@@ -5,7 +5,7 @@ import { configService } from './ConfigService'
 import { libraryService } from './LibraryService'
 import { imageGenClient } from '../infra/ImageGenClient'
 import { moveFileSync } from '../infra/fileMove'
-import { importSingleFile } from './ImportHelper'
+import { importSingleFile, shouldQueueAnalysis } from './ImportHelper'
 import { analysisQueue } from '../domain/AnalysisQueue'
 import { imageGenSessionService } from './ImageGenSessionService'
 import type { ImageGenAcceptResult, ImageGenRequest, ImageGenResult, ImageGenSession, Library } from '../../../shared/types'
@@ -130,14 +130,14 @@ export class TextToImageService {
     moveFileSync(pending.tempFilePath, targetPath)
     this.pending.delete(generationId)
 
-    const imported = await importSingleFile(library.id, targetPath)
-    if (imported) await analysisQueue.start()
+    const result = await importSingleFile(library.id, targetPath)
+    if (shouldQueueAnalysis(result)) await analysisQueue.start()
 
     return {
       filePath: targetPath,
       libraryId: library.id,
       libraryName: library.name,
-      imported
+      imported: result.action === 'added'
     }
   }
 

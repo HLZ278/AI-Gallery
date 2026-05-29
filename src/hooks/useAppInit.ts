@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useAppStore } from '../store/appStore'
+import { resolveTheme } from '../utils/theme'
 
 export function useAppInit(): void {
   const setConfig = useAppStore((s) => s.setConfig)
@@ -14,8 +15,7 @@ export function useAppInit(): void {
       try {
         const config = await window.api.config.get()
         setConfig(config)
-        if (config.ui.theme === 'dark') setTheme('dark')
-        else if (config.ui.theme === 'light') setTheme('light')
+        setTheme(resolveTheme(config.ui.theme))
         setInitError(null)
       } catch (err) {
         setInitError(err instanceof Error ? err.message : String(err))

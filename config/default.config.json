@@ -28,7 +28,7 @@
     "remotePathTemplate": "",
     "hfToken": "",
     "ignoreEnvHfToken": true,
-    "inferenceDevice": "wasm"
+    "inferenceDevice": "auto"
   },
   "embedding": {
     "enabled": true,
