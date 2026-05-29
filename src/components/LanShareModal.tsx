@@ -40,13 +40,16 @@ export function LanShareModal({ item, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm p-6 rounded-apple bg-[var(--color-card)] border border-[var(--color-border)] shadow-2xl space-y-4"
+        className="w-full max-w-sm min-w-0 p-6 rounded-apple bg-[var(--color-card)] border border-[var(--color-border)] shadow-2xl space-y-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div>
+        <div className="flex items-start justify-between gap-3 min-w-0">
+          <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold">局域网分享</h2>
-            <p className="text-xs text-[var(--color-muted)] mt-1 truncate" title={fileName}>
+            <p
+              className="text-xs text-[var(--color-muted)] mt-1 truncate max-w-full"
+              title={fileName}
+            >
               {fileName}
             </p>
           </div>
