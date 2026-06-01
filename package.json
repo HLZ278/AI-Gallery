@@ -1,6 +1,6 @@
 {
-  "name": "your-picture",
-  "version": "1.8.3",
+  "name": "ai-picture",
+  "version": "1.8.4",
   "description": "AI 驱动的 Windows 智能图库",
   "main": "out/main/index.js",
   "scripts": {
@@ -47,7 +47,7 @@
     "vite": "^5.4.14"
   },
   "build": {
-    "appId": "com.yourpicture.app",
+    "appId": "com.aipicture.app",
     "productName": "AI图库",
     "electronDist": "node_modules/electron/dist",
     "icon": "build/icon.ico",

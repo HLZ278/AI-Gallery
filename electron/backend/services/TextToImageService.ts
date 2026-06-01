@@ -9,6 +9,7 @@ import { importSingleFile, shouldQueueAnalysis } from './ImportHelper'
 import { analysisQueue } from '../domain/AnalysisQueue'
 import { imageGenSessionService } from './ImageGenSessionService'
 import type { ImageGenAcceptResult, ImageGenRequest, ImageGenResult, ImageGenSession, Library } from '../../../shared/types'
+import { APP_FILE_PREFIX } from '../../../shared/appMeta'
 
 interface PendingGeneration {
   tempFilePath: string
@@ -125,7 +126,7 @@ export class TextToImageService {
     mkdirSync(targetDir, { recursive: true })
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const targetPath = join(targetDir, `yourpicture-${timestamp}.png`)
+    const targetPath = join(targetDir, `${APP_FILE_PREFIX}-${timestamp}.png`)
 
     moveFileSync(pending.tempFilePath, targetPath)
     this.pending.delete(generationId)

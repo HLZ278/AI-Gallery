@@ -1,7 +1,8 @@
 import { app, BrowserWindow, shell, ipcMain, nativeImage } from 'electron'
 import { join } from 'path'
 import { existsSync } from 'fs'
-import { APP_DATA_DIR_NAME, APP_DISPLAY_NAME } from '../shared/appMeta'
+import { APP_DATA_DIR_NAME, APP_DISPLAY_NAME, APP_ID } from '../shared/appMeta'
+import { migrateUserDataDirFromLegacy } from './backend/services/UserDataDirMigration'
 import { registerIpcHandlers } from './ipc/handlers'
 import { closeDb } from './backend/db/DatabaseManager'
 import { lanServerService } from './backend/services/LanServerService'
@@ -18,6 +19,7 @@ setMainConfigLoader(() => configService.load())
 
 let mainWindow: BrowserWindow | null = null
 
+migrateUserDataDirFromLegacy()
 app.setPath('userData', join(app.getPath('appData'), APP_DATA_DIR_NAME))
 
 function resolveAppIconPath(): string | undefined {
@@ -77,7 +79,7 @@ function createWindow(): void {
 
 app.whenReady().then(async () => {
   if (process.platform === 'win32') {
-    app.setAppUserModelId('com.yourpicture.app')
+    app.setAppUserModelId(APP_ID)
   }
   await migrateModelsCacheFromLegacy()
   configService.load()

@@ -21,6 +21,7 @@ import type {
   MediaItem,
   MediaType
 } from '../../../shared/types'
+import { APP_FILE_PREFIX } from '../../../shared/appMeta'
 import { getImageEditSupportedTypes, resolveImageEditMediaTypes } from '../../../shared/imageEditPolicy'
 
 interface PendingEdit {
@@ -207,7 +208,7 @@ export class ImageEditService {
     mkdirSync(targetDir, { recursive: true })
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const targetPath = join(targetDir, `yourpicture-edit-${timestamp}.png`)
+    const targetPath = join(targetDir, `${APP_FILE_PREFIX}-edit-${timestamp}.png`)
     moveFileSync(pending.tempFilePath, targetPath)
     this.pending.delete(editId)
 

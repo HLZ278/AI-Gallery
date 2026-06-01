@@ -1,13 +1,25 @@
 import Database from 'better-sqlite3'
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync, renameSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
+import { APP_DB_FILENAME, LEGACY_DB_FILENAME } from '../../../shared/appMeta'
 import { runMigrations } from './migrations'
 
 let db: Database.Database | null = null
 
 export function getDbPath(): string {
-  return join(app.getPath('userData'), 'yourpicture.db')
+  const userData = app.getPath('userData')
+  const current = join(userData, APP_DB_FILENAME)
+  const legacy = join(userData, LEGACY_DB_FILENAME)
+  if (!existsSync(current) && existsSync(legacy)) {
+    try {
+      renameSync(legacy, current)
+    } catch (err) {
+      console.warn('[Database] legacy db rename failed, using legacy path', err)
+      return legacy
+    }
+  }
+  return current
 }
 
 export function getDb(): Database.Database {

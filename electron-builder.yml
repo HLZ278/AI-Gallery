@@ -1,4 +1,4 @@
-appId: com.yourpicture.app
+appId: com.aipicture.app
 productName: AI图库
 directories:
   output: release

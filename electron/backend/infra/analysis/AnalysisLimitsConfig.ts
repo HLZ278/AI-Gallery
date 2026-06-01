@@ -1,6 +1,5 @@
-import { existsSync, readFileSync } from 'fs'
-import { join } from 'path'
-import { getAppInstallDir } from '../AppPaths'
+import { readFileSync } from 'fs'
+import { resolveBundledConfigPath } from '../AppPaths'
 
 export interface AnalysisLimitsConfig {
   ocrTextMaxChars: number
@@ -18,22 +17,10 @@ const DEFAULTS: AnalysisLimitsConfig = {
 
 let cached: AnalysisLimitsConfig | null = null
 
-function resolveConfigPath(): string {
-  const paths = [
-    join(getAppInstallDir(), 'config', 'analysis-limits.json'),
-    join(__dirname, '../../../config/analysis-limits.json'),
-    join(process.cwd(), 'config/analysis-limits.json')
-  ]
-  for (const p of paths) {
-    if (existsSync(p)) return p
-  }
-  throw new Error('Config file not found: analysis-limits.json')
-}
-
 export function loadAnalysisLimitsConfig(): AnalysisLimitsConfig {
   if (cached) return cached
   try {
-    cached = { ...DEFAULTS, ...JSON.parse(readFileSync(resolveConfigPath(), 'utf-8')) }
+    cached = { ...DEFAULTS, ...JSON.parse(readFileSync(resolveBundledConfigPath('analysis-limits.json'), 'utf-8')) }
   } catch {
     cached = DEFAULTS
   }

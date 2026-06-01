@@ -1,7 +1,7 @@
-import { existsSync, readFileSync } from 'fs'
-import { join } from 'path'
+import { readFileSync } from 'fs'
 import { platform } from 'process'
 import type { InferenceDevicePreference } from '../../../shared/types'
+import { resolveBundledConfigPath } from './AppPaths'
 
 const LOG_PREFIX = '[LocalInference]'
 
@@ -17,21 +17,9 @@ interface InferenceDeviceMeta {
 
 let deviceMeta: InferenceDeviceMeta | null = null
 
-function resolveConfigPath(filename: string): string {
-  const paths = [
-    join(process.env.PICTURESEARCH_APP_ROOT ?? process.cwd(), 'config', filename),
-    join(__dirname, '../../../config', filename),
-    join(process.cwd(), 'config', filename)
-  ]
-  for (const p of paths) {
-    if (existsSync(p)) return p
-  }
-  throw new Error(`Config file not found: ${filename}`)
-}
-
 function loadDeviceMeta(): InferenceDeviceMeta {
   if (deviceMeta) return deviceMeta
-  const raw = JSON.parse(readFileSync(resolveConfigPath('inference-devices.json'), 'utf-8')) as InferenceDeviceMeta
+  const raw = JSON.parse(readFileSync(resolveBundledConfigPath('inference-devices.json'), 'utf-8')) as InferenceDeviceMeta
   deviceMeta = raw
   return raw
 }

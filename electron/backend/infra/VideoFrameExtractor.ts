@@ -7,6 +7,7 @@ import ffmpegStatic from 'ffmpeg-static'
 import { parseFile } from 'music-metadata'
 import sharp from 'sharp'
 import { getExtension, VIDEO_EXTENSIONS } from '../domain/MediaClassifier'
+import { APP_FILE_PREFIX } from '../../../shared/appMeta'
 
 const DEFAULT_FRAME_COUNT = 3
 
@@ -104,7 +105,7 @@ export async function extractVideoFrameToFile(videoPath: string, seekSec: number
 export async function extractVideoFrames(videoPath: string, frameCount = DEFAULT_FRAME_COUNT): Promise<Buffer[]> {
   const durationSec = await getDurationSec(videoPath)
   const seeks = buildSeekPoints(durationSec, frameCount)
-  const tempDir = await mkdtemp(join(tmpdir(), 'yourpicture-frames-'))
+  const tempDir = await mkdtemp(join(tmpdir(), `${APP_FILE_PREFIX}-frames-`))
   const frames: Buffer[] = []
 
   try {

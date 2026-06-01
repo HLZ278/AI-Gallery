@@ -1,6 +1,5 @@
-import { existsSync, readFileSync } from 'fs'
-import { join } from 'path'
-import { getAppInstallDir } from './AppPaths'
+import { readFileSync } from 'fs'
+import { resolveBundledConfigPath } from './AppPaths'
 
 import type { OllamaVisionModelEntry } from '../../../shared/types'
 
@@ -28,21 +27,9 @@ export interface OllamaRuntimeConfig {
 
 let cached: OllamaRuntimeConfig | null = null
 
-function resolveConfigPath(): string {
-  const paths = [
-    join(getAppInstallDir(), 'config', 'ollama-runtime.json'),
-    join(__dirname, '../../../config/ollama-runtime.json'),
-    join(process.cwd(), 'config/ollama-runtime.json')
-  ]
-  for (const p of paths) {
-    if (existsSync(p)) return p
-  }
-  throw new Error('Config file not found: ollama-runtime.json')
-}
-
 export function loadOllamaRuntimeConfig(): OllamaRuntimeConfig {
   if (cached) return cached
-  cached = JSON.parse(readFileSync(resolveConfigPath(), 'utf-8')) as OllamaRuntimeConfig
+  cached = JSON.parse(readFileSync(resolveBundledConfigPath('ollama-runtime.json'), 'utf-8')) as OllamaRuntimeConfig
   return cached
 }
 
