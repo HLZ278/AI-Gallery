@@ -49,6 +49,7 @@
   "build": {
     "appId": "com.aipicture.app",
     "productName": "AI图库",
+    "artifactName": "ai-picture-setup-${version}.${ext}",
     "electronDist": "node_modules/electron/dist",
     "icon": "build/icon.ico",
     "directories": {
