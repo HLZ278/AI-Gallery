@@ -2,6 +2,20 @@
 
 > 每一次功能变动均记录于此。版本快照见 `versions/` 与 `snapshots/`。
 
+## [1.8.4] - 2026-06-03
+
+### 新增
+
+- `npm test`：Vitest 覆盖 Windows CF_HDROP 剪贴板结构、分析队列 scope 认领、SQLite `claimNextPending` / `hasPending`
+
+### 修复
+
+- **取消分析**：`analyzeFile` 返回后若已取消，不再写入 `done` 状态
+- **范围分析**：图库全量分析进行中触发单张/批量 scope 结束后，自动恢复该图库队列（不再清空 `libraryFilter`）
+- **批量删除/移除**：搜索页多选后只刷新一次列表
+- **剪贴板**：缺失文件过滤；多选非图片走 CF_HDROP / 文件列表路径
+- **删除**：`purgeMediaRecords` 先清 FTS / 子表再删 `media_items`，避免外键残留
+
 ## [1.8.3] - 2026-05-29
 
 ### 新增

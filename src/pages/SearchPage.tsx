@@ -272,11 +272,18 @@ export function SearchPage() {
   }
 
   const handleMediaRemoved = useCallback(
-    async (mediaId: string) => {
-      if (selected?.id === mediaId) clearSelection()
-      if (previewState?.items.some((i) => i.id === mediaId)) setPreviewState(null)
-      if (multiPreview?.mode === 'window' && multiPreview.startItemId === mediaId) setMultiPreview(null)
-      if (multiPreview?.mode === 'selected' && multiPreview.items.some((i) => i.id === mediaId)) setMultiPreview(null)
+    async (mediaIds: string | string[]) => {
+      const ids = Array.isArray(mediaIds) ? mediaIds : [mediaIds]
+      if (ids.length === 0) return
+      const idSet = new Set(ids)
+      if (selected && idSet.has(selected.id)) clearSelection()
+      if (previewState?.items.some((i) => idSet.has(i.id))) setPreviewState(null)
+      if (multiPreview?.mode === 'window' && multiPreview.startItemId && idSet.has(multiPreview.startItemId)) {
+        setMultiPreview(null)
+      }
+      if (multiPreview?.mode === 'selected' && multiPreview.items.some((i) => idSet.has(i.id))) {
+        setMultiPreview(null)
+      }
       setContextMenu(null)
       return refreshResults()
     },
@@ -377,7 +384,7 @@ export function SearchPage() {
         if (!ok) return
         try {
           for (const t of targets) await window.api.media.removeFromDb(t.id)
-          for (const t of targets) await handleMediaRemoved(t.id)
+          await handleMediaRemoved(targets.map((t) => t.id))
           toast(targets.length > 1 ? `已从数据库移除 ${targets.length} 项` : '已从数据库移除', 'success')
         } catch (err) {
           toast(err instanceof Error ? err.message : String(err), 'error')
@@ -398,7 +405,7 @@ export function SearchPage() {
         if (!ok) return
         try {
           for (const t of targets) await window.api.media.deleteFromDisk(t.id)
-          for (const t of targets) await handleMediaRemoved(t.id)
+          await handleMediaRemoved(targets.map((t) => t.id))
           toast(targets.length > 1 ? `已删除 ${targets.length} 个本地文件` : '已删除本地文件', 'success')
         } catch (err) {
           toast(err instanceof Error ? err.message : String(err), 'error')

@@ -10,7 +10,7 @@ export function isImageMediaType(mediaType: MediaType): boolean {
   return IMAGE_TYPES.includes(mediaType)
 }
 
-function buildWindowsDropFilesBuffer(filePaths: string[]): Buffer {
+export function buildWindowsDropFilesBuffer(filePaths: string[]): Buffer {
   const DROPFILES_SIZE = 20
   const header = Buffer.alloc(DROPFILES_SIZE)
   header.writeUInt32LE(DROPFILES_SIZE, 0)

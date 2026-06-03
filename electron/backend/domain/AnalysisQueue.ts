@@ -1,4 +1,5 @@
 import { getDb } from '../db/DatabaseManager'
+import { buildAnalysisClaimOptions } from './analysisClaimOptions'
 import { configService } from '../services/ConfigService'
 import { mediaRepository } from '../infra/FileScanner'
 import { upsertMediaFts } from './MediaFtsIndexer'
@@ -168,13 +169,7 @@ export class AnalysisQueue {
   }
 
   private claimOptions(): { libraryId?: string; mediaIds?: string[] } {
-    if (this.scopeMediaIds?.size) {
-      return { mediaIds: [...this.scopeMediaIds] }
-    }
-    if (this.libraryFilter) {
-      return { libraryId: this.libraryFilter }
-    }
-    return {}
+    return buildAnalysisClaimOptions(this.scopeMediaIds, this.libraryFilter)
   }
 
   private hasWorkRemaining(): boolean {
@@ -262,11 +257,22 @@ export class AnalysisQueue {
       if (this.stopRequested) {
         this.revertProcessingToPending()
       }
+      const hadScopedWork = Boolean(this.scopeMediaIds?.size)
+      const resumeLibraryId =
+        hadScopedWork && this.libraryFilter && mediaRepository.hasPending({ libraryId: this.libraryFilter })
+          ? this.libraryFilter
+          : null
+      this.scopeMediaIds = null
       this.running = false
       this.stopRequested = false
-      this.libraryFilter = null
-      this.scopeMediaIds = null
+      if (!resumeLibraryId) {
+        this.libraryFilter = null
+      }
       this.emit()
+      if (resumeLibraryId) {
+        this.running = true
+        void this.processLoop()
+      }
     }
   }
 
@@ -303,6 +309,10 @@ export class AnalysisQueue {
           }
           const modelName = buildAnalysisModelName(mode)
           this.saveAnalysis(mediaId, payload, modelName, promptVersion)
+          if (this.cancelledMediaIds.has(mediaId)) {
+            cancelled = true
+            return
+          }
           mediaRepository.setStatus(mediaId, 'done')
           embeddingService.scheduleIndex(mediaId)
           return
