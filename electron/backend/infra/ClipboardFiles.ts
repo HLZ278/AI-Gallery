@@ -26,31 +26,25 @@ function buildWindowsDropFilesBuffer(filePaths: string[]): Buffer {
   return Buffer.concat([header, listBuffer])
 }
 
-function writeWindowsClipboardWithImage(filePath: string, image: Electron.NativeImage) {
-  clipboard.write({ image, text: '' })
-  clipboard.writeBuffer('CF_HDROP', buildWindowsDropFilesBuffer([filePath]))
-}
-
 function copySingleImageForExternalPaste(filePath: string): void {
-  const image = nativeImage.createFromPath(filePath)
-  if (image.isEmpty()) {
+  if (process.platform === 'win32') {
     copyFilesToClipboard([filePath])
     return
   }
 
-  if (process.platform === 'win32') {
-    writeWindowsClipboardWithImage(filePath, image)
-    return
-  }
-
+  const image = nativeImage.createFromPath(filePath)
   if (process.platform === 'darwin') {
-    clipboard.write({ image })
+    if (!image.isEmpty()) clipboard.write({ image })
     const escaped = filePath.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
     execFileSync('osascript', ['-e', `set the clipboard to (POSIX file "${escaped}")`])
     return
   }
 
-  clipboard.write({ image })
+  if (!image.isEmpty()) {
+    clipboard.write({ image })
+    return
+  }
+  copyFilesToClipboard([filePath])
 }
 
 export function copyFilesToClipboard(filePaths: string[]): void {

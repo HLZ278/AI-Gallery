@@ -94,6 +94,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('media:enhanceAnalysis', async (_e, mediaId: string) => {
     await analysisQueue.enhanceMedia(mediaId)
   })
+  ipcMain.handle('media:cancelAnalysis', (_e, mediaId: string) => {
+    analysisQueue.cancelMedia(mediaId)
+  })
   ipcMain.handle('media:removeFromDb', (_e, mediaId: string) => {
     mediaService.removeFromDatabase(mediaId)
   })

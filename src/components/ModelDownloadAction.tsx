@@ -27,7 +27,8 @@ export function ModelDownloadAction({
 }: ModelDownloadActionProps) {
   const ready = status?.ready ?? false
   const isLiveTarget = liveProgress?.modelId === modelId
-  const progress = isLiveTarget ? liveProgress.progress : (status?.progress ?? 0)
+  const rawProgress = isLiveTarget ? liveProgress.progress : (status?.progress ?? 0)
+  const progress = Math.min(100, Math.max(0, rawProgress))
   const isActiveTarget = isLiveTarget || (status?.downloading ?? false)
   const downloading = isActiveTarget && (busy || status?.downloading || progress < 100)
 

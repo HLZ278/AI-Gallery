@@ -5,6 +5,14 @@ import { copyMediaItemsToClipboard, type ClipboardMediaItem } from '../infra/Cli
 import type { MediaType } from '../../../shared/types'
 
 export class MediaService {
+  private purgeMediaRecords(db: ReturnType<typeof getDb>, mediaId: string): void {
+    db.prepare('DELETE FROM media_fts WHERE media_id = ?').run(mediaId)
+    db.prepare('DELETE FROM analysis_results WHERE media_id = ?').run(mediaId)
+    db.prepare('DELETE FROM media_metadata WHERE media_id = ?').run(mediaId)
+    db.prepare('DELETE FROM media_embeddings WHERE media_id = ?').run(mediaId)
+    db.prepare('DELETE FROM media_items WHERE id = ?').run(mediaId)
+  }
+
   removeFromDatabase(mediaId: string): void {
     const db = getDb()
     const row = db.prepare('SELECT file_path, thumb_path FROM media_items WHERE id = ?').get(mediaId) as
@@ -12,8 +20,7 @@ export class MediaService {
       | undefined
     if (!row) throw new Error('Media not found')
 
-    db.prepare('DELETE FROM media_fts WHERE media_id = ?').run(mediaId)
-    db.prepare('DELETE FROM media_items WHERE id = ?').run(mediaId)
+    this.purgeMediaRecords(db, mediaId)
     this.deleteThumb(row.thumb_path)
   }
 
@@ -25,11 +32,15 @@ export class MediaService {
     if (!row) throw new Error('Media not found')
 
     if (existsSync(row.file_path)) {
-      unlinkSync(row.file_path)
+      try {
+        unlinkSync(row.file_path)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        throw new Error(`无法删除本地文件：${msg}`)
+      }
     }
 
-    db.prepare('DELETE FROM media_fts WHERE media_id = ?').run(mediaId)
-    db.prepare('DELETE FROM media_items WHERE id = ?').run(mediaId)
+    this.purgeMediaRecords(db, mediaId)
     this.deleteThumb(row.thumb_path)
   }
 

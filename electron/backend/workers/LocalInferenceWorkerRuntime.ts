@@ -211,6 +211,7 @@ export class LocalInferenceWorkerRuntime {
 
       this.downloading = { modelId: payload.modelId, kind: payload.kind }
       this.emitProgress(payload.modelId, 0)
+      let maxDownloadProgress = 0
 
       try {
         await applyTransformersEnv()
@@ -221,7 +222,8 @@ export class LocalInferenceWorkerRuntime {
         const cacheDir = getModelsCacheDir()
         const progress_callback = (info: { status?: string; file?: string; progress?: number }) => {
           if (typeof info.progress === 'number') {
-            this.emitProgress(payload.modelId, Math.round(info.progress))
+            maxDownloadProgress = Math.max(maxDownloadProgress, Math.round(info.progress))
+            this.emitProgress(payload.modelId, maxDownloadProgress)
           }
         }
 

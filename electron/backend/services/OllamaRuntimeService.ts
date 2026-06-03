@@ -335,6 +335,7 @@ export class OllamaRuntimeService {
     const reader = res.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let maxPullProgress = 0
 
     for (;;) {
       const { done, value } = await reader.read()
@@ -348,9 +349,10 @@ export class OllamaRuntimeService {
           const evt = JSON.parse(line) as { status?: string; completed?: number; total?: number }
           if (typeof evt.completed === 'number' && typeof evt.total === 'number' && evt.total > 0) {
             const pct = Math.round((evt.completed / evt.total) * 100)
+            maxPullProgress = Math.max(maxPullProgress, pct)
             this.emitStatus({
-              progress: Math.min(99, pct),
-              message: evt.status ? `${evt.status} (${evt.completed}/${evt.total})` : `下载中 ${pct}%`
+              progress: Math.min(99, maxPullProgress),
+              message: evt.status ? `${evt.status} (${evt.completed}/${evt.total})` : `下载中 ${maxPullProgress}%`
             })
           } else if (evt.status) {
             this.emitStatus({ message: evt.status })

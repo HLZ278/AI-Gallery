@@ -25,14 +25,16 @@ type PipelineKind = 'caption' | 'embedding'
 export class LocalModelService {
   private downloading: { modelId: string; kind: PipelineKind } | null = null
   private downloadProgress = 0
+  private downloadMaxProgress = 0
   private downloadError: string | null = null
   private progressListeners: Array<(payload: { modelId: string; progress: number }) => void> = []
 
   constructor() {
     localInferenceBridge.onDownloadProgress(({ modelId, progress }) => {
       if (this.downloading?.modelId === modelId) {
-        this.downloadProgress = progress
-        this.emitProgress(modelId, progress)
+        this.downloadMaxProgress = Math.max(this.downloadMaxProgress, progress)
+        this.downloadProgress = this.downloadMaxProgress
+        this.emitProgress(modelId, this.downloadMaxProgress)
       }
     })
   }
@@ -186,11 +188,14 @@ export class LocalModelService {
 
       this.downloading = { modelId, kind }
       this.downloadProgress = 0
+      this.downloadMaxProgress = 0
       this.downloadError = null
       this.emitProgress(modelId, 0)
+      let maxPullProgress = 0
       const unsub = ollamaRuntimeService.onSetupProgress((st) => {
-        this.downloadProgress = st.progress
-        this.emitProgress(modelId, st.progress)
+        maxPullProgress = Math.max(maxPullProgress, st.progress)
+        this.downloadProgress = maxPullProgress
+        this.emitProgress(modelId, maxPullProgress)
       })
       try {
         await ollamaRuntimeService.pullVisionModel(modelTag)
@@ -207,6 +212,7 @@ export class LocalModelService {
 
     this.downloading = { modelId, kind }
     this.downloadProgress = 0
+    this.downloadMaxProgress = 0
     this.downloadError = null
     this.emitProgress(modelId, 0)
 

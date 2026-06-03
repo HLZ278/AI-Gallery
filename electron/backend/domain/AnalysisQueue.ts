@@ -22,6 +22,9 @@ export class AnalysisQueue {
   private processingItems = new Map<string, string>()
   private forcedModeQueue: QueuedJob[] = []
   private libraryFilter: string | null = null
+  /** 非空时仅处理这些 mediaId（单张重分析 / 批量增强） */
+  private scopeMediaIds: Set<string> | null = null
+  private cancelledMediaIds = new Set<string>()
 
   onProgress(cb: ProgressCallback): () => void {
     this.listeners.push(cb)
@@ -82,6 +85,7 @@ export class AnalysisQueue {
       return
     }
     this.libraryFilter = libraryId ?? null
+    this.scopeMediaIds = null
     this.stopRequested = false
     this.running = true
     void this.processLoop()
@@ -102,7 +106,8 @@ export class AnalysisQueue {
     if (mode === 'cloud' || mode === 'local') {
       this.enqueueForcedMode(mediaId, mode)
     }
-    if (!this.running) await this.start()
+    this.scopeMediaIds = new Set([mediaId])
+    await this.ensureRunning()
   }
 
   async enhanceMedia(mediaId: string): Promise<void> {
@@ -112,7 +117,8 @@ export class AnalysisQueue {
     }
     mediaRepository.setStatus(mediaId, 'pending', null)
     this.enqueueForcedMode(mediaId, 'cloud')
-    if (!this.running) await this.start()
+    this.scopeMediaIds = new Set([mediaId])
+    await this.ensureRunning()
   }
 
   async enhanceBatch(mediaIds: string[]): Promise<number> {
@@ -126,8 +132,53 @@ export class AnalysisQueue {
       this.enqueueForcedMode(mediaId, 'cloud')
       count++
     }
-    if (count > 0 && !this.running) await this.start()
+    if (count > 0) {
+      this.scopeMediaIds = new Set(mediaIds)
+      await this.ensureRunning()
+    }
     return count
+  }
+
+  cancelMedia(mediaId: string): void {
+    this.cancelledMediaIds.add(mediaId)
+    this.forcedModeQueue = this.forcedModeQueue.filter((j) => j.mediaId !== mediaId)
+    if (!this.processingItems.has(mediaId)) {
+      this.revertCancelledStatus(mediaId)
+      this.cancelledMediaIds.delete(mediaId)
+    }
+    this.emit()
+  }
+
+  private async ensureRunning(): Promise<void> {
+    if (this.running) {
+      if (this.stopRequested) this.stopRequested = false
+      return
+    }
+    this.libraryFilter = null
+    this.stopRequested = false
+    this.running = true
+    void this.processLoop()
+  }
+
+  private revertCancelledStatus(mediaId: string): void {
+    const hasAnalysis = Boolean(
+      getDb().prepare('SELECT 1 FROM analysis_results WHERE media_id = ?').get(mediaId)
+    )
+    mediaRepository.setStatus(mediaId, hasAnalysis ? 'done' : 'pending', null)
+  }
+
+  private claimOptions(): { libraryId?: string; mediaIds?: string[] } {
+    if (this.scopeMediaIds?.size) {
+      return { mediaIds: [...this.scopeMediaIds] }
+    }
+    if (this.libraryFilter) {
+      return { libraryId: this.libraryFilter }
+    }
+    return {}
+  }
+
+  private hasWorkRemaining(): boolean {
+    return mediaRepository.hasPending(this.claimOptions())
   }
 
   private enqueueForcedMode(mediaId: string, mode: AnalysisMode): void {
@@ -179,7 +230,7 @@ export class AnalysisQueue {
         const maxConcurrency = this.getMaxConcurrency()
 
         while (inFlight.size < maxConcurrency && this.running && !this.stopRequested) {
-          const item = mediaRepository.claimNextPending(this.libraryFilter ?? undefined)
+          const item = mediaRepository.claimNextPending(this.claimOptions())
           if (!item) break
 
           const queuedMode = this.dequeueMode(item.id)
@@ -197,7 +248,7 @@ export class AnalysisQueue {
         }
 
         if (inFlight.size === 0) {
-          if (!mediaRepository.hasPending(this.libraryFilter ?? undefined)) break
+          if (!this.hasWorkRemaining()) break
           await sleep(100)
           continue
         }
@@ -214,6 +265,7 @@ export class AnalysisQueue {
       this.running = false
       this.stopRequested = false
       this.libraryFilter = null
+      this.scopeMediaIds = null
       this.emit()
     }
   }
@@ -223,19 +275,32 @@ export class AnalysisQueue {
   }
 
   private async processOne(mediaId: string, filePath: string, forcedMode?: AnalysisMode): Promise<void> {
+    if (this.cancelledMediaIds.has(mediaId)) {
+      this.revertCancelledStatus(mediaId)
+      this.cancelledMediaIds.delete(mediaId)
+      return
+    }
+
     const config = configService.load()
     this.processingItems.set(mediaId, filePath)
     this.emit()
 
     let lastError: Error | null = null
+    let cancelled = false
     try {
       for (let attempt = 0; attempt <= config.llm.maxRetries; attempt++) {
-        if (this.stopRequested) return
+        if (this.stopRequested || this.cancelledMediaIds.has(mediaId)) {
+          cancelled = this.cancelledMediaIds.has(mediaId)
+          return
+        }
         try {
           const mode = await resolveAnalysisModeForJob(forcedMode)
           const provider = createImageAnalysisProvider(mode)
           const { payload, promptVersion } = await provider.analyzeFile(filePath, mediaId)
-          if (this.stopRequested) return
+          if (this.stopRequested || this.cancelledMediaIds.has(mediaId)) {
+            cancelled = this.cancelledMediaIds.has(mediaId)
+            return
+          }
           const modelName = buildAnalysisModelName(mode)
           this.saveAnalysis(mediaId, payload, modelName, promptVersion)
           mediaRepository.setStatus(mediaId, 'done')
@@ -246,11 +311,17 @@ export class AnalysisQueue {
           await sleep(1000 * (attempt + 1))
         }
       }
-      if (!this.stopRequested) {
+      if (!this.stopRequested && !this.cancelledMediaIds.has(mediaId)) {
         console.error(`Analysis failed for ${filePath}:`, lastError)
         mediaRepository.setStatus(mediaId, 'failed', lastError?.message ?? '分析失败')
+      } else if (this.cancelledMediaIds.has(mediaId)) {
+        cancelled = true
       }
     } finally {
+      if (cancelled) {
+        this.revertCancelledStatus(mediaId)
+        this.cancelledMediaIds.delete(mediaId)
+      }
       this.processingItems.delete(mediaId)
       this.emit()
     }

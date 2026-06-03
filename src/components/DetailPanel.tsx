@@ -19,6 +19,7 @@ interface Props {
   onClose: () => void
   onRetry?: () => void | Promise<void>
   onEnhance?: () => void | Promise<void>
+  onCancel?: () => void | Promise<void>
   onSearchTag?: (tag: string) => void
   onSendToEdit?: () => void
 }
@@ -32,6 +33,7 @@ export function DetailPanel({
   onClose,
   onRetry,
   onEnhance,
+  onCancel,
   onSearchTag,
   onSendToEdit
 }: Props) {
@@ -70,24 +72,39 @@ export function DetailPanel({
     }
   }
 
+  const handleCancel = async () => {
+    if (!onCancel || !isAnalyzing) return
+    try {
+      await onCancel()
+    } finally {
+      setIsRetrying(false)
+    }
+  }
+
   const retryButton =
-    onRetry || onEnhance ? (
+    onRetry || onEnhance || onCancel ? (
       <div className="flex flex-wrap gap-2 pt-2">
-        {onRetry && (
-          <RetryAnalysisButton
-            onClick={handleRetry}
-            disabled={isAnalyzing}
-            label={isAnalyzing ? '分析中' : '本地重新分析'}
-            className=""
-          />
-        )}
-        {onEnhance && (
-          <RetryAnalysisButton
-            onClick={handleEnhance}
-            disabled={isAnalyzing}
-            label={isAnalyzing ? '分析中' : '云端增强分析'}
-            className=""
-          />
+        {isAnalyzing && onCancel ? (
+          <RetryAnalysisButton onClick={handleCancel} disabled={false} label="停止分析" className="" />
+        ) : (
+          <>
+            {onRetry && (
+              <RetryAnalysisButton
+                onClick={handleRetry}
+                disabled={isAnalyzing}
+                label={isAnalyzing ? '分析中' : '本地重新分析'}
+                className=""
+              />
+            )}
+            {onEnhance && (
+              <RetryAnalysisButton
+                onClick={handleEnhance}
+                disabled={isAnalyzing}
+                label={isAnalyzing ? '分析中' : '云端增强分析'}
+                className=""
+              />
+            )}
+          </>
         )}
       </div>
     ) : null

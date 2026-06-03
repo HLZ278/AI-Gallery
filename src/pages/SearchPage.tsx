@@ -185,7 +185,6 @@ export function SearchPage() {
       try {
         patchMediaStatusBatch(mediaIds, 'pending')
         const count = await window.api.analysis.enhanceBatch(mediaIds)
-        await window.api.analysis.start()
         toast(`已提交 ${count} 项云端增强分析`, 'success')
       } catch (err) {
         toast(err instanceof Error ? err.message : String(err), 'error')
@@ -337,7 +336,12 @@ export function SearchPage() {
     switch (action) {
       case 'copy': {
         const targets = selectedIds.has(item.id) && selectedIds.size > 1 ? getSelectedItems() : [item]
-        await copyMediaItems(targets)
+        try {
+          await copyMediaItems(targets)
+          toast(targets.length > 1 ? `已复制 ${targets.length} 个文件` : '已复制文件，可在资源管理器中粘贴', 'success')
+        } catch (err) {
+          toast(err instanceof Error ? err.message : String(err), 'error')
+        }
         break
       }
       case 'copyPath':
@@ -360,25 +364,45 @@ export function SearchPage() {
         break
       }
       case 'removeFromDb': {
+        const targets =
+          selectedIds.has(item.id) && selectedIds.size > 1 ? getSelectedItems() : [item]
         const ok = await confirmAction({
-          message: '从数据库移除此项？本地文件保留，重新扫描图库可再次导入并分析。',
+          message:
+            targets.length > 1
+              ? `从数据库移除选中的 ${targets.length} 项？本地文件保留。`
+              : '从数据库移除此项？本地文件保留，重新扫描图库可再次导入并分析。',
           danger: true,
           confirmLabel: '移除'
         })
         if (!ok) return
-        await window.api.media.removeFromDb(item.id)
-        await handleMediaRemoved(item.id)
+        try {
+          for (const t of targets) await window.api.media.removeFromDb(t.id)
+          for (const t of targets) await handleMediaRemoved(t.id)
+          toast(targets.length > 1 ? `已从数据库移除 ${targets.length} 项` : '已从数据库移除', 'success')
+        } catch (err) {
+          toast(err instanceof Error ? err.message : String(err), 'error')
+        }
         break
       }
       case 'deleteFromDisk': {
+        const targets =
+          selectedIds.has(item.id) && selectedIds.size > 1 ? getSelectedItems() : [item]
         const ok = await confirmAction({
-          message: '确定从本地删除此文件？此操作不可恢复。',
+          message:
+            targets.length > 1
+              ? `确定从本地删除选中的 ${targets.length} 个文件？此操作不可恢复。`
+              : '确定从本地删除此文件？此操作不可恢复。',
           danger: true,
           confirmLabel: '删除'
         })
         if (!ok) return
-        await window.api.media.deleteFromDisk(item.id)
-        await handleMediaRemoved(item.id)
+        try {
+          for (const t of targets) await window.api.media.deleteFromDisk(t.id)
+          for (const t of targets) await handleMediaRemoved(t.id)
+          toast(targets.length > 1 ? `已删除 ${targets.length} 个本地文件` : '已删除本地文件', 'success')
+        } catch (err) {
+          toast(err instanceof Error ? err.message : String(err), 'error')
+        }
         break
       }
     }
@@ -635,18 +659,23 @@ export function SearchPage() {
               const mediaId = selected.id
               patchMediaStatus(mediaId, 'pending')
               await window.api.media.retryAnalysis(mediaId)
-              await window.api.analysis.start()
             }}
             onEnhance={async () => {
               const mediaId = selected.id
               try {
                 patchMediaStatus(mediaId, 'pending')
                 await window.api.media.enhanceAnalysis(mediaId)
-                await window.api.analysis.start()
               } catch (err) {
                 toast(err instanceof Error ? err.message : String(err), 'error')
                 throw err
               }
+            }}
+            onCancel={async () => {
+              const mediaId = selected.id
+              await window.api.media.cancelAnalysis(mediaId)
+              const hasAnalysis = analysis != null
+              patchMediaStatus(mediaId, hasAnalysis ? 'done' : 'pending')
+              toast('已停止分析', 'info')
             }}
           />
         )}

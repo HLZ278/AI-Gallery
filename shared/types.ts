@@ -468,6 +468,7 @@ export interface IpcApi {
     getAnalysis: (mediaId: string) => Promise<AnalysisResult | null>
     retryAnalysis: (mediaId: string) => Promise<void>
     enhanceAnalysis: (mediaId: string) => Promise<void>
+    cancelAnalysis: (mediaId: string) => Promise<void>
     removeFromDb: (mediaId: string) => Promise<void>
     deleteFromDisk: (mediaId: string) => Promise<void>
     copy: (filePath: string, mediaType: MediaType) => Promise<void>

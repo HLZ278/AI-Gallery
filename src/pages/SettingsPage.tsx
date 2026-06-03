@@ -74,7 +74,11 @@ export function SettingsPage() {
     window.api.ollama.getVisionCatalog().then(setOllamaVisionCatalog).catch(() => null)
     window.api.config.getRuntimeInfo().then(setRuntimeInfo).catch(() => null)
     const unsubDownload = window.api.localModel.onDownloadProgress((payload) => {
-      setModelDownloadProgress(payload)
+      setModelDownloadProgress((prev) =>
+        prev?.modelId === payload.modelId
+          ? { modelId: payload.modelId, progress: Math.max(prev.progress, payload.progress) }
+          : payload
+      )
     })
     const unsubOllama = window.api.ollama.onSetupProgress((status) => {
       setOllamaLiveStatus(status)

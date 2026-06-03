@@ -39,6 +39,7 @@ const api = {
     getAnalysis: (mediaId: string) => ipcRenderer.invoke('media:getAnalysis', mediaId),
     retryAnalysis: (mediaId: string) => ipcRenderer.invoke('media:retryAnalysis', mediaId),
     enhanceAnalysis: (mediaId: string) => ipcRenderer.invoke('media:enhanceAnalysis', mediaId),
+    cancelAnalysis: (mediaId: string) => ipcRenderer.invoke('media:cancelAnalysis', mediaId),
     removeFromDb: (mediaId: string) => ipcRenderer.invoke('media:removeFromDb', mediaId),
     deleteFromDisk: (mediaId: string) => ipcRenderer.invoke('media:deleteFromDisk', mediaId),
     copyPath: (filePath: string) => ipcRenderer.invoke('media:copyPath', filePath),
